@@ -1,0 +1,19 @@
+{
+  "docker": {
+    "registry": {
+      "host": "",
+      "project": "",
+      "repository": "",
+      "namespace": "private-compute-infra-toolkit/public-endorsement-service"
+    },
+    "images": {
+      "build-env": {
+        "packages": {
+          "default-jre-headless": "*",
+          "libpython3-stdlib": "*",
+          "python3-minimal": "*"
+        }
+      }
+    }
+  }
+}

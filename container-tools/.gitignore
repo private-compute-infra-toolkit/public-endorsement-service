@@ -1,0 +1,24 @@
+# Bazel build outputs
+bazel-*
+
+# Common IDE and editor files
+.project
+.vscode/
+.idea/
+*.iml
+*~
+# IntelliJ
+.idea
+.bazelproject
+.ijwb/
+.aswb/
+
+# Ignore generated files for eclipse lsp
+/pom.xml
+/.settings
+/.classpath
+/.factorypath
+/target
+/bin
+
+.eclipse

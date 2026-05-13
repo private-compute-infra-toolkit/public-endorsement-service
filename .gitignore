@@ -1,0 +1,22 @@
+# Bazel build outputs
+bazel-*
+
+# Common IDE and editor files
+.project
+.vscode/
+.idea/
+*.iml
+*~
+# IntelliJ
+.idea
+.bazelproject
+.ijwb/
+.aswb/
+
+# Terraform
+google_internal/integration-tests/infrastructure/.terraform
+
+# Integration tests
+google_internal/integration-tests/AMI_ID
+google_internal/integration-tests/TEST_ID
+google_internal/integration-tests/artifact-creation

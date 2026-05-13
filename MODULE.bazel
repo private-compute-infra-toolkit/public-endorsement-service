@@ -1,0 +1,125 @@
+module(name = "pes")
+
+bazel_dep(name = "rules_jvm_external", version = "6.9")
+bazel_dep(name = "rules_java", version = "8.16.1")
+bazel_dep(name = "grpc-proto", version = "0.0.0-20240627-ec30f58", repo_name = "io_grpc_grpc_proto")
+bazel_dep(name = "grpc-java", version = "1.71.0", repo_name = "io_grpc_grpc_java")
+bazel_dep(name = "protobuf", version = "32.1", repo_name = "com_google_protobuf")
+bazel_dep(name = "rules_proto", version = "7.1.0")
+bazel_dep(name = "rules_go", version = "0.52.0", repo_name = "io_bazel_rules_go")
+bazel_dep(name = "rules_pkg", version = "1.1.0")
+bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "rules_cc", version = "0.2.8")
+bazel_dep(name = "rules_oci", version = "1.8.0")
+bazel_dep(name = "googleapis", version = "0.0.0-20251211-05f65958")
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "confidential-federated-compute",
+    build_file_content = """
+filegroup(
+  name = "sysroot",
+  srcs = glob(["*/**"]),
+  visibility = ["//visibility:public"],
+)
+""",
+    urls = ["file:third_party/sysroot.tar.xz"],
+)
+
+bazel_dep(name = "toolchains_llvm", version = "1.4.0")
+
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
+llvm.toolchain(
+    name = "cpp_toolchain",
+    llvm_version = "20.1.0",
+)
+llvm.sysroot(
+    name = "cpp_toolchain",
+    label = "@confidential-federated-compute//:sysroot",
+    targets = ["linux-x86_64"],
+)
+use_repo(llvm, "cpp_toolchain")
+
+register_toolchains("@cpp_toolchain//:all")
+
+bazel_dep(name = "rpmpack", version = "0.6.0", repo_name = "com_github_google_rpmpack")
+bazel_dep(name = "rules_aws", version = "0.0.0")
+local_path_override(
+    module_name = "rules_aws",
+    path = "container-tools",
+)
+
+bazel_dep(name = "pcit_api", version = "0.0.0")
+local_path_override(
+    module_name = "pcit_api",
+    path = "api",
+)
+
+bazel_dep(name = "pcit_mbs")
+local_path_override(
+    module_name = "pcit_mbs",
+    path = "mbs",
+)
+
+bazel_dep(name = "rules_boost", repo_name = "com_github_nelhage_rules_boost")
+archive_override(
+    module_name = "rules_boost",
+    integrity = "sha256-ZLcmvYKc2FqgLvR96ApPXxp8+sXKqhBlCK66PY/uFIo=",
+    strip_prefix = "rules_boost-e3adfd8d6733c914d2b91a65fb7175af09602281",
+    urls = ["https://github.com/nelhage/rules_boost/archive/e3adfd8d6733c914d2b91a65fb7175af09602281.tar.gz"],
+)
+
+archive_override(
+    module_name = "oak",
+    strip_prefix = "oak-125200702f216cf02ac218fe6737f44cd001c803",
+    url = "https://github.com/project-oak/oak/archive/125200702f216cf02ac218fe6737f44cd001c803.tar.gz",
+)
+
+single_version_override(
+    module_name = "rules_oci",
+    version = "1.8.0",
+)
+
+single_version_override(
+    module_name = "grpc",
+    version = "1.69.0",
+)
+
+AWS_SDK_VERSION = "2.21.17"
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    artifacts = [
+        "com.google.inject:guice:7.0.0",
+        "com.google.flogger:flogger:0.9",
+        "com.google.flogger:flogger-system-backend:0.9",
+        "junit:junit:4.13.2",
+        "org.mockito:mockito-core:3.12.4",
+        "com.google.truth:truth:1.4.5",
+        "com.github.ben-manes.caffeine:caffeine:3.1.8",
+        "io.grpc:grpc-api:1.71.0",
+        "io.grpc:grpc-netty-shaded:1.71.0",
+        "io.grpc:grpc-stub:1.71.0",
+        "io.grpc:grpc-protobuf:1.71.0",
+        "io.grpc:grpc-services:1.71.0",
+        "io.jsonwebtoken:jjwt-api:0.12.6",
+        "io.jsonwebtoken:jjwt-impl:0.12.6",
+        "io.jsonwebtoken:jjwt-jackson:0.12.6",
+        "com.linecorp.armeria:armeria:1.34.1",
+        "com.linecorp.armeria:armeria-grpc:1.34.1",
+        "com.beust:jcommander:1.82",
+        "org.apache.httpcomponents.client5:httpclient5:5.6",
+        "com.google.code.gson:gson:2.13.2",
+        "tools.jackson.core:jackson-core:3.0.3",
+        "software.amazon.awssdk:s3:" + AWS_SDK_VERSION,
+        "software.amazon.awssdk:regions:" + AWS_SDK_VERSION,
+        "software.amazon.awssdk:imds:" + AWS_SDK_VERSION,
+        "org.bouncycastle:bcpkix-jdk15to18:1.82",
+        "org.bouncycastle:bcprov-jdk15to18:1.82",
+    ],
+    repositories = [
+        "https://repo1.maven.org/maven2",
+    ],
+)
+use_repo(maven, "maven")

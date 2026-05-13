@@ -1,0 +1,3 @@
+[codespell]
+ignore-words-list = Affinitized,AtLeast,CopyIn,assertIn,aks,bais,ois
+skip = devkit/docker/test_build.py,*.lock,*lock.json

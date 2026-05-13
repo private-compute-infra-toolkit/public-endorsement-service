@@ -1,0 +1,221 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+module(
+    name = "rules_aws",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "abseil-cpp", version = "20240722.1", repo_name = "com_google_absl")
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "boringssl", version = "0.20250114.0")
+bazel_dep(name = "c-ares", version = "1.15.0", repo_name = "com_github_cares_cares")
+bazel_dep(name = "crc32c", version = "1.1.0", repo_name = "com_github_google_crc32c")
+bazel_dep(name = "curl", version = "8.8.0.bcr.2", repo_name = "com_github_curl_curl")
+bazel_dep(name = "google_benchmark", version = "1.9.1")
+bazel_dep(name = "googletest", version = "1.15.2", repo_name = "com_google_googletest")
+bazel_dep(name = "grpc", version = "1.69.0", repo_name = "com_github_grpc_grpc")
+bazel_dep(name = "nlohmann_json", version = "3.11.3.bcr.1", repo_name = "com_github_nlohmann_json")
+bazel_dep(name = "onetbb", version = "2021.10.0", repo_name = "oneTBB")
+bazel_dep(name = "openssl", version = "3.3.1.bcr.1")
+bazel_dep(name = "opentelemetry-cpp", version = "1.19.0", repo_name = "io_opentelemetry_cpp")
+bazel_dep(name = "opentelemetry-proto", version = "1.5.0", repo_name = "com_github_opentelemetry_proto")
+bazel_dep(name = "platforms", version = "0.0.11")
+bazel_dep(name = "protobuf", version = "29.3", repo_name = "com_google_protobuf")
+bazel_dep(name = "protoc-gen-validate", version = "1.0.4.bcr.2")
+bazel_dep(name = "re2", version = "2024-07-02.bcr.1", repo_name = "com_googlesource_code_re2")
+bazel_dep(name = "rpmpack", version = "0.6.0", repo_name = "com_github_google_rpmpack")
+bazel_dep(name = "rules_cc", version = "0.0.17")
+bazel_dep(name = "rules_foreign_cc", version = "0.13.0")
+bazel_dep(name = "rules_go", version = "0.52.0")
+bazel_dep(name = "rules_java", version = "8.12.0")
+bazel_dep(name = "rules_jvm_external", version = "6.7")
+bazel_dep(name = "rules_oci", version = "1.8.0")
+bazel_dep(name = "rules_pkg", version = "1.0.1")
+bazel_dep(name = "rules_python", version = "1.9.0")
+bazel_dep(name = "toolchains_llvm", version = "1.4.0")
+bazel_dep(name = "xds", version = "0.0.0-20240423-555b57e", repo_name = "com_github_cncf_xds")
+bazel_dep(name = "zlib", version = "1.3.1.bcr.4")
+
+single_version_override(
+    module_name = "rules_cc",
+    version = "0.0.17",
+)
+
+bazel_dep(name = "rules_boost", repo_name = "com_github_nelhage_rules_boost")
+archive_override(
+    module_name = "rules_boost",
+    integrity = "sha256-ZLcmvYKc2FqgLvR96ApPXxp8+sXKqhBlCK66PY/uFIo=",
+    strip_prefix = "rules_boost-e3adfd8d6733c914d2b91a65fb7175af09602281",
+    urls = "https://github.com/nelhage/rules_boost/archive/e3adfd8d6733c914d2b91a65fb7175af09602281.tar.gz",
+)
+
+non_module_boost_repositories = use_extension("@com_github_nelhage_rules_boost//:boost/repositories.bzl", "non_module_dependencies")
+use_repo(
+    non_module_boost_repositories,
+    "boost",
+)
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)
+llvm.toolchain(
+    name = "cpp_toolchain",
+    llvm_version = "20.1.0",
+)
+use_repo(llvm, "cpp_toolchain")
+
+register_toolchains(
+    "@cpp_toolchain//:all",
+    dev_dependency = True,
+)
+
+http_archive(
+    name = "confidential-federated-compute",
+    build_file_content = """
+filegroup(
+  name = "sysroot",
+  srcs = glob(["*/**"]),
+  visibility = ["//visibility:public"],
+)
+""",
+    dev_dependency = True,
+    sha256 = "f58c289b3ccb28895ad8ca408ac366e709037088e8b5c28aca18212adc18c31e",
+    urls = ["https://github.com/google-parfait/confidential-federated-compute/releases/download/sysroot-20250618/sysroot.tar.xz"],
+)
+
+llvm.sysroot(
+    name = "cpp_toolchain",
+    label = "@confidential-federated-compute//:sysroot",
+    targets = ["linux-x86_64"],
+)
+
+http_archive(
+    name = "com_github_nghttp2_nghttp2",
+    build_file = "//build_defs/cc/shared/build_targets:nghttp2.BUILD",
+    patch_args = ["-p1"],
+    patches = ["//build_defs/cc/shared/build_targets:nghttp2.patch"],
+    sha256 = "62f50f0e9fc479e48b34e1526df8dd2e94136de4c426b7680048181606832b7c",
+    strip_prefix = "nghttp2-1.47.0",
+    urls = [
+        "https://github.com/nghttp2/nghttp2/releases/download/v1.47.0/nghttp2-1.47.0.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "jemalloc",
+    build_file = "//build_defs/cc/shared/build_targets:libjemalloc.BUILD",
+    sha256 = "1f35888bad9fd331f5a03445bc1bff808a59378be61fef01e9736179d76f2fab",
+    url = "https://github.com/jemalloc/jemalloc/archive/refs/tags/5.3.0.zip",
+)
+
+http_archive(
+    name = "google-cloud-sdk",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+exports_files(["google-cloud-sdk"])
+""",
+    # latest from https://cloud.google.com/storage/docs/gsutil_install#linux as of 2021-12-16
+    sha256 = "94328b9c6559a1b7ec2eeaab9ef0e4702215e16e8327c5b99718750526ae1efe",
+    url = "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-367.0.0-linux-x86_64.tar.gz",
+)
+
+http_archive(
+    name = "terraform",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+exports_files(["terraform"])
+""",
+    sha256 = "dcaf8ba801660a431a6769ec44ba53b66c1ad44637512ef3961f7ffe4397ef7c",
+    url = "https://releases.hashicorp.com/terraform/1.12.1/terraform_1.12.1_linux_amd64.zip",
+)
+
+http_archive(
+    name = "tflint",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+exports_files(["tflint"])
+""",
+    sha256 = "1e8ccdf3e4b57ba154545b4343621bf46f25ca8f5cc97e36432469752f7ef0c0",
+    url = "https://github.com/terraform-linters/tflint/releases/download/v0.58.0/tflint_linux_amd64.zip",
+)
+
+http_archive(
+    name = "gperftools",
+    build_file = "//build_defs/cc/shared/build_targets:gperftools.BUILD",
+    sha256 = "c69fef855628c81ef56f12e3c58f2b7ce1f326c0a1fe783e5cae0b88cbbe9a80",
+    strip_prefix = "gperftools-2.15",
+    urls = [
+        "https://github.com/gperftools/gperftools/releases/download/gperftools-2.15/gperftools-2.15.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "packer",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+exports_files(["packer"])
+""",
+    sha256 = "57d0411e578aea62918d36ed186951139d5d49d44b76e5666d1fbf2427b385ae",
+    url = "https://releases.hashicorp.com/packer/1.8.6/packer_1.8.6_linux_amd64.zip",
+)
+
+http_archive(
+    name = "aws_nitro_enclaves_sdk_c",
+    build_file = "//build_defs/aws/kmstool:kmstool.BUILD",
+    patch_args = ["-p1"],
+    patches = [
+        "//build_defs/aws/kmstool:kmstool.patch",
+        "//build_defs/aws/kmstool:dockerfile_git_shallow_clone.patch",
+    ],
+    sha256 = "bc937626e1058c2464e60dde3a410855b87987e6da23433d78e77aedc8a152ec",
+    strip_prefix = "aws-nitro-enclaves-sdk-c-e3425251b5fd573a730101b091f770ad21b9ee56",
+    urls = ["https://github.com/aws/aws-nitro-enclaves-sdk-c/archive/e3425251b5fd573a730101b091f770ad21b9ee56.zip"],
+)
+
+http_archive(
+    name = "libpsl",
+    build_file = "//build_defs/cc/shared/build_targets:libpsl.BUILD",
+    sha256 = "e35991b6e17001afa2c0ca3b10c357650602b92596209b7492802f3768a6285f",
+    strip_prefix = "libpsl-0.21.2",
+    urls = [
+        "https://github.com/rockdaboot/libpsl/releases/download/0.21.2/libpsl-0.21.2.tar.gz",
+    ],
+)
+
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+http_file(
+    name = "bazelisk",
+    downloaded_file_path = "bazelisk",
+    executable = True,
+    sha256 = "84e946ed8537eaaa4d540df338a593e373e70c5ddca9f2f49e1aaf3a04bdd6ca",
+    urls = ["https://github.com/bazelbuild/bazelisk/releases/download/v1.14.0/bazelisk-linux-amd64"],
+)
+
+http_file(
+    name = "docker_compose",
+    downloaded_file_path = "docker-compose",
+    sha256 = "9040bd35b2cc0783ce6c5de491de7e52e24d4137dbfc5de8a524f718fc23556c",
+    url = "https://github.com/docker/compose/releases/download/v2.36.2/docker-compose-linux-x86_64",
+)
+
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.pull(
+    name = "container_tools_java_base",
+    digest = "sha256:587ce66b08faea2e2e1568d6bb6c5fd6b085909621f4c14762206d687ff7d202",
+    image = "gcr.io/distroless/java17-debian11",
+    platforms = ["linux/amd64"],
+)
+use_repo(oci, "container_tools_java_base")

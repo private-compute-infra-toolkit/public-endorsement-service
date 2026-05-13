@@ -1,0 +1,27 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "oak_orchestrator",
+      "digest": {
+        "sha256": "8c938394c5962194d1449ee17b4db5fdf5a78729b38ebacf26de9bed4027e351"
+      }
+    }
+  ],
+  "predicateType": "https://project-oak.github.io/oak/tr/endorsement/v1",
+  "predicate": {
+    "issuedOn": "2024-10-07T06:44:22.459000Z",
+    "validity": {
+      "notBefore": "2024-10-07T06:44:22.459000Z",
+      "notAfter": "2025-10-07T06:44:22.459000Z"
+    },
+    "claims": [
+      {
+        "type": "https://github.com/pcit/pes/docs/claims/v1/publisher.md",
+        "annotations": {
+          "layer": "application"
+        }
+      }
+    ]
+  }
+}

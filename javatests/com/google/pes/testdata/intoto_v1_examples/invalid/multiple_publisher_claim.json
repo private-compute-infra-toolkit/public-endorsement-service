@@ -1,0 +1,33 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "some_workload",
+      "digest": {
+        "sha256": "1234567899987654321..."
+      }
+    }
+  ],
+  "predicateType": "https://project-oak.github.io/oak/tr/endorsement/v1",
+  "predicate": {
+    "issuedOn": "2024-10-07T06:44:22.459000Z",
+    "validity": {
+      "notBefore": "2024-10-07T06:44:22.459000Z",
+      "notAfter": "2025-10-07T06:44:22.459000Z"
+    },
+    "claims": [
+      {
+        "type": "https://github.com/pcit/pes/docs/claims/v1/publisher.md",
+        "annotations": {
+          "publisher_id": "google.com"
+        }
+      },
+      {
+        "type": "https://github.com/pcit/pes/docs/claims/v1/publisher.md",
+        "annotations": {
+          "publisher_id": "maybe-google.com"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Configure Fluent Bit Environment
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/google/enclave/configure_fluent_bit.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

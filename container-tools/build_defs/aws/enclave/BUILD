@@ -19,6 +19,16 @@ package(default_visibility = ["//visibility:public"])
 exports_files([
     "allocator.template.yaml",
     "generic_enclave_ami.pkr.hcl",
+    "configure_fluent_bit.sh",
+    "fluent-bit.conf",
+    "enclave_watcher.sh",
+    "enclave.service",
+    "configure-fluent-bit.service",
+    "logback.xml",
+    "fluent-bit.repo",
+    "override.conf",
+    "setup_enclave.sh",
+    "pcit_enclave_ami.pkr.hcl",
 ])
 
 # Small allocator.yaml file suitable for running on a c5.xlarge (4 host cpus,

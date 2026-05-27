@@ -26,6 +26,7 @@
 #include <boost/asio.hpp>
 
 #include "logging.h"
+#include "protocol.h"
 #include "socket_types.h"
 
 namespace asio = boost::asio;
@@ -57,6 +58,10 @@ bool SocketVendorServer::Init() {
     LogError("Cannot set option REUSEADDR, ", ec.message());
     return false;
   }
+  asio::socket_base::receive_buffer_size receive_buffer_size(kDefaultSocketBufferSize);
+  acceptor_.set_option(receive_buffer_size, ec);
+  asio::socket_base::send_buffer_size send_buffer_size(kDefaultSocketBufferSize);
+  acceptor_.set_option(send_buffer_size, ec);
   Endpoint ep{asio::local::stream_protocol::endpoint(sock_path_)};
   acceptor_.bind(ep, ec);
   if (ec.failed()) {

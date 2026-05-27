@@ -22,6 +22,7 @@
 #include <boost/bind/bind.hpp>
 
 #include "logging.h"
+#include "protocol.h"
 #include "socket_vendor_protocol.h"
 
 using boost::bind;
@@ -59,6 +60,12 @@ bool ClientSessionPool::Start() {
   // On the bind call, we initiate the first connection to proxy to see if
   // binding on port can be successfully made.
   Socket first_socket(client_sock_.get_executor());
+
+  asio::socket_base::send_buffer_size send_buffer_size(kDefaultSocketBufferSize);
+  first_socket.set_option(send_buffer_size, ec);
+  asio::socket_base::receive_buffer_size receive_buffer_size(kDefaultSocketBufferSize);
+  first_socket.set_option(receive_buffer_size, ec);
+
   first_socket.connect(proxy_endpoint_, ec);
   if (ec.failed()) {
     LogError("socket_vendor: cannot connect to proxy, ", ec.message());
@@ -176,6 +183,11 @@ void ClientSessionPool::InitiateSocket(size_t index) {
   sock.close(err_ignore);
   // Re-create a new socket
   sock = Socket(client_sock_.get_executor());
+  asio::socket_base::send_buffer_size send_buffer_size(kDefaultSocketBufferSize);
+  sock.set_option(send_buffer_size, err_ignore);
+  asio::socket_base::receive_buffer_size receive_buffer_size(kDefaultSocketBufferSize);
+  sock.set_option(receive_buffer_size, err_ignore);
+
   sock.async_connect(proxy_endpoint_,
                      bind(&ClientSessionPool::HandleConnect, shared_from_this(),
                           index, placeholders::error));

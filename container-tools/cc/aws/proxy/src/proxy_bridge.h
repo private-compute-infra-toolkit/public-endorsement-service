@@ -23,11 +23,13 @@
 #include <utility>
 
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/socket_base.hpp>
 #include <boost/asio/strand.hpp>
 
 #include "acceptor_pool.h"
 #include "buffer.h"
 #include "logging.h"
+#include "protocol.h"
 #include "socket_types.h"
 #include "socks5_state.h"
 
@@ -38,8 +40,8 @@ namespace google::scp::proxy {
 // thread-safety with asio handlers in multi-thread environments.
 class ProxyBridge : public std::enable_shared_from_this<ProxyBridge> {
  public:
-  static constexpr size_t kMaxBufferSize = 1024 * 1024;
-  static constexpr size_t kReadSize = 64 * 1024;
+  static constexpr size_t kMaxBufferSize = 32 * 1024;
+  static constexpr size_t kReadSize = 8 * 1024;
 
   // Construct a ProxyBridge with a connected client socket. SocketType can be
   // any stream socket implementation of boost::asio.
@@ -58,6 +60,8 @@ class ProxyBridge : public std::enable_shared_from_this<ProxyBridge> {
         downstream_size_(0ul),
 #endif
         acceptor_pool_(acceptor_pool) {
+    SetSocketOptions(client_sock_);
+    SetSocketOptions(dest_sock_);
     SetSocks5StateCallbacks();
   }
 
@@ -79,6 +83,8 @@ class ProxyBridge : public std::enable_shared_from_this<ProxyBridge> {
         downstream_size_(0ul),
 #endif
         acceptor_pool_(acceptor_pool) {
+    SetSocketOptions(client_sock_);
+    SetSocketOptions(dest_sock_);
     SetSocks5StateCallbacks();
   }
 
@@ -120,6 +126,16 @@ class ProxyBridge : public std::enable_shared_from_this<ProxyBridge> {
   void StopWaitingInbound(bool client_error = true);
 
  private:
+  void SetSocketOptions(Socket& sock) {
+    boost::system::error_code ec;
+    boost::asio::socket_base::send_buffer_size send_buffer_size(
+        kDefaultSocketBufferSize);
+    sock.set_option(send_buffer_size, ec);
+    boost::asio::socket_base::receive_buffer_size receive_buffer_size(
+        kDefaultSocketBufferSize);
+    sock.set_option(receive_buffer_size, ec);
+  }
+
   static std::atomic<uint64_t> connection_id_counter;
   const uint64_t connection_id_;
 

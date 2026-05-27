@@ -237,6 +237,11 @@ EXPORT int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
   } else {
     fl = ConvertToVsock(sockfd);
   }
+  // Set buffer size.
+  int buf_size = kDefaultSocketBufferSize;
+  libc_setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &buf_size, sizeof(buf_size));
+  libc_setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &buf_size, sizeof(buf_size));
+
   // Set blocking
   fcntl(sockfd, F_SETFL, (fl & ~O_NONBLOCK));
   sockaddr_vm vsock_addr = GetProxyVsockAddr();

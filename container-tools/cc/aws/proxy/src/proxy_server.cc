@@ -36,6 +36,7 @@
 #include <boost/asio.hpp>
 
 #include "logging.h"
+#include "protocol.h"
 #include "proxy_bridge.h"
 #include "socket_types.h"
 
@@ -61,6 +62,10 @@ void ProxyServer::BindListen() {
   if (vsock_) {
     Protocol protocol(AF_VSOCK, 0);
     acceptor_.open(protocol);
+    socket_base::receive_buffer_size recv_size_option(kDefaultSocketBufferSize);
+    acceptor_.set_option(recv_size_option);
+    socket_base::send_buffer_size send_size_option(kDefaultSocketBufferSize);
+    acceptor_.set_option(send_size_option);
     socket_base::reuse_address reuse_addr(true);
     acceptor_.set_option(reuse_addr);
     sockaddr_vm addr;
@@ -79,6 +84,10 @@ void ProxyServer::BindListen() {
   } else {
     Protocol protocol(AF_INET6, 0);
     acceptor_.open(protocol);
+    socket_base::receive_buffer_size recv_size_option(kDefaultSocketBufferSize);
+    acceptor_.set_option(recv_size_option);
+    socket_base::send_buffer_size send_size_option(kDefaultSocketBufferSize);
+    acceptor_.set_option(send_size_option);
     socket_base::reuse_address reuse_addr(true);
     acceptor_.set_option(reuse_addr);
     sockaddr_in6 addr;

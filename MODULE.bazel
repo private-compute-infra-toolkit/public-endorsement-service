@@ -117,6 +117,10 @@ maven.install(
         "software.amazon.awssdk:imds:" + AWS_SDK_VERSION,
         "org.bouncycastle:bcpkix-jdk15to18:1.82",
         "org.bouncycastle:bcprov-jdk15to18:1.82",
+        "ch.qos.logback:logback-classic:1.5.6",
+        "ch.qos.logback:logback-core:1.5.6",
+        "com.google.flogger:flogger-slf4j-backend:0.9",
+        "net.logstash.logback:logstash-logback-encoder:7.4",
     ],
     repositories = [
         "https://repo1.maven.org/maven2",

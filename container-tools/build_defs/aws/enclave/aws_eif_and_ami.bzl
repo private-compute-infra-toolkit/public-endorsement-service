@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Macros for building AWS enclave images and VM AMIs."""
+
 load("@rules_pkg//:pkg.bzl", "pkg_tar")
 load("//build_defs/aws/enclave:container.bzl", "java_enclave_image")
+load("//build_defs/aws/enclave:enclave_watcher_rpm.bzl", "enclave_watcher_rpm")
 load("//operator/worker/aws/build_defs:ami.bzl", "packer_worker_ami")
 
 def aws_eif_and_ami(
@@ -21,7 +24,7 @@ def aws_eif_and_ami(
         name,
         ami_name,
         ami_groups = "[]",
-        packer_ami_config,
+        packer_ami_config = Label("//build_defs/aws/enclave:pcit_enclave_ami.pkr.hcl"),
         ec2_instance = "m5.xlarge",
         subnet_id,
         enclave_cpus = 2,
@@ -31,8 +34,9 @@ def aws_eif_and_ami(
         enclave_cmd = [],
         jar_path,
         proxy_rpm = "@rules_aws//cc/aws/proxy:vsockproxy_rpm",
-        watcher_rpm,
-        startup_script,
+        watcher_rpm = None,
+        startup_script = Label("//build_defs/aws/enclave:setup_enclave.sh"),
+        service_name = "enclave",
         jar_file = None,
         jar_args = [],
         jvm_options = [],
@@ -74,7 +78,7 @@ def aws_eif_and_ami(
       enclave_cmd: Command (in exec form) to start up the enclave container.
       jar_path: Path to deployable jar.
       proxy_rpm: Path to proxy rpm.
-      watcher_rpm: Path to watcher rpm.
+      watcher_rpm: Path to watcher rpm. If not provided, a default watcher RPM will be generated.
       jar_file: Absolute path to the JAR file in the enclave that should be
         invoked.
       jar_args: CLI args passed to the JAR file inside the enclave.
@@ -87,6 +91,7 @@ def aws_eif_and_ami(
       user_rpms: A list of other RPMs to install on the AMI.
       additional_container_files: A list of additional files to be included in the container.
       startup_script: path to a startup script
+      service_name: The name of the service used for isolation and naming.
       additional_container_tars: Additional tars that will be passed to the java_enclave_image.
     """
 
@@ -110,6 +115,13 @@ def aws_eif_and_ami(
         name = merged_licenses_name,
         deps = [Label("@rules_aws//licenses:licenses_tar")] + licenses,
     )
+
+    if not watcher_rpm:
+        enclave_watcher_rpm(
+            name = name + "_watcher_rpm",
+            service_name = service_name,
+        )
+        watcher_rpm = ":" + name + "_watcher_rpm"
 
     # Executable target for running Packer to generate the complete AMI image
     packer_worker_ami(

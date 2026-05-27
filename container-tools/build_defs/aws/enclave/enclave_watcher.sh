@@ -14,7 +14,7 @@
 # limitations under the License.
 
 #
-# Starts or stops the pes enclave on the system, notifying systemd of status
+# Starts or stops the enclave on the system, notifying systemd of status
 # updates. Assumes at-most one enclave will be running and that if one enclave
 # is running, the service is running.
 #
@@ -23,18 +23,18 @@
 # Assumes PyYAML is available on the system for parsing that file.
 #
 # Usage:
-#   pes_watcher.sh (start|stop)
+#   enclave_watcher.sh (start|stop)
 set -euo pipefail
 
 # Allow values to be overridden with environment variables.
-ENCLAVE_PATH="${ENCLAVE_PATH:-/opt/google/pes/enclave.eif}"
+ENCLAVE_PATH="${ENCLAVE_PATH:-/opt/google/enclave/enclave.eif}"
 ALLOCATOR_YAML_PATH="${ALLOCATOR_YAML_PATH:-/etc/nitro_enclaves/allocator.yaml}"
 ENCLAVE_FAILURE_COUNT_FILE="/tmp/enclave_start_failure_count"
-ENABLE_pes_DEBUG_MODE="${ENABLE_WORKER_DEBUG_MODE:-0}"
-declare -a pes_DEBUG_MODE_FLAGS=()
+ENABLE_ENCLAVE_DEBUG_MODE="${ENABLE_WORKER_DEBUG_MODE:-0}"
+declare -a ENCLAVE_DEBUG_MODE_FLAGS=()
 
-if [[ $ENABLE_pes_DEBUG_MODE != 0 ]]; then
-  pes_DEBUG_MODE_FLAGS=(--debug-mode --attach-console)
+if [[ $ENABLE_ENCLAVE_DEBUG_MODE != 0 ]]; then
+  ENCLAVE_DEBUG_MODE_FLAGS=(--debug-mode --attach-console)
 fi
 
 # This function checks essential permissions required to run the worker. This
@@ -69,6 +69,7 @@ check_permissions() {
   local environment
   environment=$(echo "${tags_kv}" | jq -r ".environment")
   echo "environment=${environment}"
+
   echo "Done!"
 }
 
@@ -144,7 +145,7 @@ start_enclave() {
   echo "cpu_count=${cpu}"
   echo "memory_mib=${memory}"
 
-  if ! nitro-cli run-enclave --cpu-count="${cpu}" --memory="${memory}" --eif-path "${ENCLAVE_PATH}" "${pes_DEBUG_MODE_FLAGS[@]}"; then
+  if ! nitro-cli run-enclave --cpu-count="${cpu}" --memory="${memory}" --eif-path "${ENCLAVE_PATH}" "${ENCLAVE_DEBUG_MODE_FLAGS[@]}"; then
     handle_enclave_startup_failure
     sleep 10
     systemd-notify ERRNO=1

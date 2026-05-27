@@ -26,6 +26,8 @@ static constexpr unsigned int kDefaultParentPort = 8888;
 
 static constexpr char kSocketVendorUdsPath[] = "/tmp/socket_vendor.sock";
 
+static constexpr int kDefaultSocketBufferSize = 32768;
+
 // Given a request/response, fill the address and port. Returns the number of
 // bytes copied into msg.
 size_t FillAddrPort(void* msg, const sockaddr* addr);

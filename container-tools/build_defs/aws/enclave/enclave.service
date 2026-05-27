@@ -1,14 +1,16 @@
 [Unit]
-Description=Watcher script for pes nitro enclave
+Description=Watcher script for nitro enclave
 After=network.target
 After=nitro-enclaves-allocator.service
 After=vsockproxy.service
+After=fluent-bit.service
 Requires=nitro-enclaves-allocator.service
+Requires=fluent-bit.service
 
 [Service]
 Type=notify
-ExecStart=/opt/google/pes/pes_watcher.sh start
-ExecStop=/opt/google/pes/pes_watcher.sh stop
+ExecStart=/opt/google/enclave/enclave_watcher.sh start
+ExecStop=/opt/google/enclave/enclave_watcher.sh stop
 Restart=always
 # Restart if no ping is received in 60 seconds.
 WatchdogSec=60

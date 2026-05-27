@@ -218,6 +218,7 @@ void ProxyBridge::ConnectHandler(const error_code& ec) {
     // TODO: log
     return;
   }
+  SetSocketOptions(dest_sock_);
   if (socks5_state_.ConnectionSucceed()) {
     ForwardTraffic();
   }
@@ -306,6 +307,7 @@ void ProxyBridge::AcceptInboundConnection(Socket sock) {
   error_code ec;
   client_sock_.cancel(ec);
   dest_sock_ = std::move(sock);
+  SetSocketOptions(dest_sock_);
   if (!socks5_state_.ConnectionSucceed()) {
     return;
   }

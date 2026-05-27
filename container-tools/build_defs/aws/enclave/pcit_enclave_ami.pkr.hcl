@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ locals {
   //AMI naming does not support some special characters
   timestamp = formatdate("YYYY-MM-DD'T'hh-mm-ssZ", timestamp())
 
-  # List of additional systemd configuration to add to pes.
-  pes_overrides = [
+  # List of additional systemd configuration to add to the service.
+  enclave_overrides = [
     {enable_worker_debug_mode} ? "Environment=ENABLE_WORKER_DEBUG_MODE=1" : "",
     "TimeoutStartSec=600", # Extend start-up timeout for large memory Enclave.
   ]
@@ -105,16 +105,16 @@ build {
   provisioner "file" {
     content = <<-EOF
     [Service]
-    ${join("\n", local.pes_overrides)}
+    ${join("\n", local.enclave_overrides)}
     EOF
-    destination = "/tmp/pes_override.conf"
+    destination = "/tmp/enclave_override.conf"
   }
 
   # Create worker overrides directory and move override there;
   provisioner "shell" {
     inline = [
-      "sudo mkdir /etc/systemd/system/pes.service.d/",
-      "sudo mv /tmp/pes_override.conf /etc/systemd/system/pes.service.d/override.conf",
+      "sudo mkdir /etc/systemd/system/enclave.service.d/",
+      "sudo mv /tmp/enclave_override.conf /etc/systemd/system/enclave.service.d/override.conf",
       # Clean up files used by provision_script
       "sudo rm -rf /tmp/rpms",
       "sudo rm -f /tmp/{container_filename}",

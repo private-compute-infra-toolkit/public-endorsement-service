@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Bazel rules to build AWS worker AMI image with Packer."""
+
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
 # Executable rule for running packer to build an AWS worker AMI image
@@ -40,7 +42,6 @@ def _packer_worker_ami_impl(ctx):
         substitutions = {
             "{container_file}": ctx.attr.enclave_container_image.label.name,
             "{docker_repo}": ctx.attr.enclave_container_image.label.package,
-            # Remove the .tar extension for the docker tag
             "{docker_tag}": ctx.attr.enclave_container_image.label.name.replace(".tar", ""),
         },
     )

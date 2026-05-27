@@ -25,6 +25,13 @@ java_library(
     ],
 )
 
+genrule(
+    name = "copy_logback_xml",
+    srcs = ["@rules_aws//build_defs/aws/enclave:logback.xml"],
+    outs = ["logback.xml"],
+    cmd = "cp $< $@",
+)
+
 java_binary(
     name = "server_main",
     srcs = [
@@ -38,9 +45,14 @@ java_binary(
         "ServerMain.java",
     ],
     main_class = "com.google.pes.server.ServerMain",
+    resource_strip_prefix = "java/com/google/pes/server",
+    resources = [":logback.xml"],
     visibility = ["//visibility:public"],
     runtime_deps = [
-        "@maven//:com_google_flogger_flogger_system_backend",
+        "@maven//:ch_qos_logback_logback_classic",
+        "@maven//:ch_qos_logback_logback_core",
+        "@maven//:com_google_flogger_flogger_slf4j_backend",
+        "@maven//:net_logstash_logback_logstash_logback_encoder",
     ],
     deps = [
         ":pes_cmd_args",

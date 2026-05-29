@@ -24,6 +24,8 @@ import software.amazon.awssdk.imds.Ec2MetadataClient;
 public class ImdsClient {
 
   private static final String IDENTITY_DOCUMENT_PATH = "/latest/dynamic/instance-identity/document";
+  private static final String ENVIRONMENT_TAG_PATH = "/latest/meta-data/tags/instance/environment";
+  private static final String DOMAIN_TAG_PATH = "/latest/meta-data/tags/instance/domain";
 
   public ImdsClient() {}
 
@@ -40,7 +42,11 @@ public class ImdsClient {
       JsonObject identityDocument = gson.fromJson(docString, JsonObject.class);
       String region = identityDocument.get("region").getAsString();
       String accountId = identityDocument.get("accountId").getAsString();
-      return new AwsInstanceMetadata(region, accountId);
+
+      String environment = client.get(ENVIRONMENT_TAG_PATH).asString();
+      String domain = client.get(DOMAIN_TAG_PATH).asString();
+
+      return new AwsInstanceMetadata(region, accountId, environment, domain);
     } catch (Exception e) {
       throw new RuntimeException("Failed to fetch EC2 Instance Identity Document via IMDS.", e);
     }

@@ -36,7 +36,8 @@ public class AwsResourceNamesProviderTest {
     when(args.getMbsKmsKeySuffix()).thenReturn("test-kms-key-suffix");
     when(args.getTLedgerCertBucketPrefix()).thenReturn("test-tledger-cert-prefix");
 
-    AwsInstanceMetadata metadata = new AwsInstanceMetadata("us-west-2", "123456789012");
+    AwsInstanceMetadata metadata =
+        new AwsInstanceMetadata("us-west-2", "123456789012", "testenv", "testdomain");
     AwsResourceNamesProvider provider = new AwsResourceNamesProvider(args, metadata);
 
     AwsResourceNames names = provider.getRecord();

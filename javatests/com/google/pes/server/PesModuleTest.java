@@ -65,7 +65,8 @@ public class PesModuleTest {
             "--mbs-kms-key-suffix=" + TEST_MBS_KEY,
             "--cert-backup-bucket-prefix=" + TEST_CERT_BUCKET,
             "--key-backup-bucket-prefix=" + TEST_KEY_BUCKET);
-    AwsInstanceMetadata metadata = new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012");
+    AwsInstanceMetadata metadata =
+        new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012", "testenv", "testdomain");
     Injector injector = Guice.createInjector(new PesModule(args, metadata));
 
     assertThat(injector).isNotNull();
@@ -100,7 +101,8 @@ public class PesModuleTest {
             "--cert-backup-bucket-prefix=" + TEST_CERT_BUCKET,
             "--mbs-kms-key-suffix=" + TEST_MBS_KEY,
             "--key-backup-bucket-prefix=" + TEST_KEY_BUCKET);
-    AwsInstanceMetadata metadata = new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012");
+    AwsInstanceMetadata metadata =
+        new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012", "testenv", "testdomain");
     Injector injector = Guice.createInjector(new PesModule(args, metadata));
     CloseableHttpClient client = injector.getInstance(CloseableHttpClient.class);
     assertThat(client).isNotNull();
@@ -118,7 +120,8 @@ public class PesModuleTest {
             "--mbs-kms-key-suffix=" + TEST_MBS_KEY,
             "--cert-backup-bucket-prefix=" + TEST_CERT_BUCKET,
             "--key-backup-bucket-prefix=" + TEST_KEY_BUCKET);
-    AwsInstanceMetadata metadata = new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012");
+    AwsInstanceMetadata metadata =
+        new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012", "testenv", "testdomain");
     Injector injector = Guice.createInjector(new PesModule(args, metadata));
     ObjectMapper mapper = injector.getInstance(ObjectMapper.class);
     assertThat(mapper).isNotNull();
@@ -136,7 +139,8 @@ public class PesModuleTest {
             "--mbs-kms-key-suffix=" + TEST_MBS_KEY,
             "--cert-backup-bucket-prefix=" + TEST_CERT_BUCKET,
             "--key-backup-bucket-prefix=" + TEST_KEY_BUCKET);
-    AwsInstanceMetadata metadata = new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012");
+    AwsInstanceMetadata metadata =
+        new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012", "testenv", "testdomain");
     Injector injector = Guice.createInjector(new PesModule(args, metadata));
     S3Client client = injector.getInstance(S3Client.class);
     assertThat(client).isNotNull();
@@ -156,7 +160,8 @@ public class PesModuleTest {
             "--mbs-kms-key-suffix=" + TEST_MBS_KEY,
             "--cert-backup-bucket-prefix=" + TEST_CERT_BUCKET,
             "--key-backup-bucket-prefix=" + TEST_KEY_BUCKET);
-    AwsInstanceMetadata metadata = new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012");
+    AwsInstanceMetadata metadata =
+        new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012", "testenv", "testdomain");
     PesModule module = new PesModule(args, metadata);
     Injector injector = Guice.createInjector(module);
 

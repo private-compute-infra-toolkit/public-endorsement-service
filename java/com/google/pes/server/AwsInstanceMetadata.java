@@ -17,4 +17,5 @@
 package com.google.pes.server;
 
 /** Immutable carrier for IMDS data. */
-public record AwsInstanceMetadata(String region, String accountId) {}
+public record AwsInstanceMetadata(
+    String region, String accountId, String environment, String domain) {}

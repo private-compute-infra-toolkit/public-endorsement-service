@@ -30,3 +30,13 @@ java_test(
         "@maven//:junit_junit",
     ],
 )
+
+java_test(
+    name = "ClaimTest",
+    srcs = ["ClaimTest.java"],
+    deps = [
+        "//java/com/google/pes/adapters/statementvalidation",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+    ],
+)

@@ -47,7 +47,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public class S3PolicyProviderTest {
 
   private static final String BUCKET_NAME = "test-bucket";
-  private static final String PUBLISHER_ID = "pub-123";
+  private static final String PUBLISHER_ID = "role-123@domain.com";
 
   @Mock private S3Client s3Client;
 
@@ -62,7 +62,7 @@ public class S3PolicyProviderTest {
   public void get_ShouldReturnConfiguration_WhenJsonIsValid() {
     String validJson =
         "{\n"
-            + "  \"publisher_id\": \"pub-123\",\n"
+            + "  \"publisher_id\": \"role-123@domain.com\",\n"
             + "  \"oidc_token_claims\": [\n"
             + "    {\"issuer\": \"expected-issuer\", \"subject\": \"expected-subject\"}\n"
             + "  ],\n"
@@ -75,7 +75,7 @@ public class S3PolicyProviderTest {
 
     assertThat(resultOptional).isPresent();
     PublisherPolicy result = resultOptional.get();
-    assertThat(result.publisherId()).isEqualTo("pub-123");
+    assertThat(result.publisherId()).isEqualTo(PUBLISHER_ID);
     assertThat(result.oidcTokenClaims()).hasSize(1);
     assertThat(result.oidcTokenClaims().get(0).issuer()).isEqualTo("expected-issuer");
     assertThat(result.oidcTokenClaims().get(0).subject()).isEqualTo("expected-subject");

@@ -43,8 +43,8 @@ public final class JsonPublisherIdProviderTest {
         },
         "claims": [
           {
-            "type": "https://github.com/pcit/pes/docs/claims/v1/publisher.md",
-            "annotations": { "publisher_id": "google.com" }
+            "type": "https://github.com/private-compute-infra-toolkit/public-endorsement-service/blob/main/docs/claims/publisher.md",
+            "annotations": { "publisher_id": "release@google.com" }
           }
         ]
       }
@@ -63,7 +63,18 @@ public final class JsonPublisherIdProviderTest {
   public void getValidPublisherId_correct1_succeeds() throws Exception {
     ByteString statementBytes = loadTestData("valid/correct_only_publisher_claim.json");
     String publisherId = validator.getValidPublisherId(statementBytes);
-    assertThat(publisherId).isEqualTo("google.com");
+    assertThat(publisherId).isEqualTo("release@google.com");
+  }
+
+  @Test
+  public void getValidPublisherId_legacyPublisherClaim_succeeds() throws Exception {
+    String json = loadTestData("valid/correct_only_publisher_claim.json").toStringUtf8();
+    String modifiedJson =
+        json.replace(Claim.PUBLISHER_CLAIM_TYPE, Claim.LEGACY_PUBLISHER_CLAIM_TYPE);
+    ByteString statementBytes = ByteString.copyFromUtf8(modifiedJson);
+
+    String publisherId = validator.getValidPublisherId(statementBytes);
+    assertThat(publisherId).isEqualTo("release@google.com");
   }
 
   @Test
@@ -221,7 +232,7 @@ public final class JsonPublisherIdProviderTest {
   @Test
   public void getValidPublisherId_nullPublisherId_throws() throws Exception {
     String validJson = loadTestData("valid/correct_only_publisher_claim.json").toStringUtf8();
-    String invalidJson = validJson.replace("\"google.com\"", "null");
+    String invalidJson = validJson.replace("\"release@google.com\"", "null");
     ByteString statementBytes = ByteString.copyFromUtf8(invalidJson);
     IllegalArgumentException e =
         assertThrows(
@@ -230,12 +241,14 @@ public final class JsonPublisherIdProviderTest {
   }
 
   @Test
-  public void getValidPublisherId_emptyPublisherId_succeeds() throws Exception {
+  public void getValidPublisherId_emptyPublisherId_throws() throws Exception {
     String validJson = loadTestData("valid/correct_only_publisher_claim.json").toStringUtf8();
-    String invalidJson = validJson.replace("google.com", "");
+    String invalidJson = validJson.replace("release@google.com", "");
     ByteString statementBytes = ByteString.copyFromUtf8(invalidJson);
 
-    String publisherId = validator.getValidPublisherId(statementBytes);
-    assertThat(publisherId).isEmpty();
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class, () -> validator.getValidPublisherId(statementBytes));
+    assertThat(e).hasMessageThat().contains("publisher_id cannot be null or empty");
   }
 }

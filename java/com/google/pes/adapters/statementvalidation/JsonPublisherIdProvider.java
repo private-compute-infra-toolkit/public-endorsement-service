@@ -16,6 +16,7 @@
 
 package com.google.pes.adapters.statementvalidation;
 
+import static com.google.pes.adapters.statementvalidation.Claim.LEGACY_PUBLISHER_CLAIM_TYPE;
 import static com.google.pes.adapters.statementvalidation.Claim.PUBLISHER_CLAIM_TYPE;
 import static com.google.pes.adapters.statementvalidation.Claim.PUBLISHER_ID_KEY;
 
@@ -63,7 +64,10 @@ public final class JsonPublisherIdProvider implements PublisherIdProvider {
     }
 
     return statement.getPredicate().getClaims().stream()
-        .filter(claim -> claim.getType().equals(PUBLISHER_CLAIM_TYPE))
+        .filter(
+            claim ->
+                claim.getType().equals(PUBLISHER_CLAIM_TYPE)
+                    || claim.getType().equals(LEGACY_PUBLISHER_CLAIM_TYPE))
         .collect(
             Collectors.collectingAndThen(
                 Collectors.toList(),

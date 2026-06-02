@@ -17,9 +17,9 @@
     },
     "claims": [
       {
-        "type": "https://github.com/pcit/pes/docs/claims/v1/publisher.md",
+        "type": "https://github.com/private-compute-infra-toolkit/public-endorsement-service/blob/main/docs/claims/publisher.md",
         "annotations": {
-          "publisher_id": "google.com"
+          "publisher_id": "release@google.com"
         }
       }
     ]

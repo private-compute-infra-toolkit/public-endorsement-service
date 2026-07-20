@@ -32,13 +32,9 @@ import java.util.regex.Pattern;
 public class Claim {
   public static final String PUBLISHER_CLAIM_TYPE =
       "https://github.com/private-compute-infra-toolkit/public-endorsement-service/blob/main/docs/claims/publisher.md";
-  public static final String LEGACY_PUBLISHER_CLAIM_TYPE =
-      "https://github.com/pcit/pes/docs/claims/v1/publisher.md";
   public static final String PUBLISHER_ID_KEY = "publisher_id";
   public static final String WORKLOAD_CLAIM_TYPE =
       "https://github.com/private-compute-infra-toolkit/public-endorsement-service/blob/main/docs/claims/workload.md";
-  public static final String LEGACY_WORKLOAD_CLAIM_TYPE =
-      "https://github.com/pcit/pes/docs/claims/v1/workload.md";
   public static final String WORKLOAD_ID_KEY = "workload_id";
 
   private static final Pattern SPIFFE_CHARS = Pattern.compile("^[a-zA-Z0-9._-]+$");
@@ -55,9 +51,9 @@ public class Claim {
       throw new IllegalArgumentException("Claim type is null!");
     }
 
-    if (type.equals(PUBLISHER_CLAIM_TYPE) || type.equals(LEGACY_PUBLISHER_CLAIM_TYPE)) {
+    if (type.equals(PUBLISHER_CLAIM_TYPE)) {
       validatePublisherClaim(annotations);
-    } else if (type.equals(WORKLOAD_CLAIM_TYPE) || type.equals(LEGACY_WORKLOAD_CLAIM_TYPE)) {
+    } else if (type.equals(WORKLOAD_CLAIM_TYPE)) {
       validateWorkloadClaim(annotations);
     }
 

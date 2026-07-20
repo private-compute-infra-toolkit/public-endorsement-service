@@ -15,18 +15,24 @@
 load("@rules_java//java:defs.bzl", "java_test")
 
 java_test(
-    name = "PublisherVerifierTest",
+    name = "EndorsementVerifierTest",
     size = "small",
-    srcs = ["PublisherVerifierTest.java"],
-    test_class = "com.google.pes.domain.PublisherVerifierTest",
+    srcs = ["EndorsementVerifierTest.java"],
+    resources = [
+        "//javatests/com/google/pes/testdata:intoto_examples",
+    ],
+    test_class = "com.google.pes.domain.EndorsementVerifierTest",
     deps = [
         "//java/com/google/pes/domain",
+        "//java/com/google/pes/domain/metric",
         "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
         "@com_google_protobuf//:protobuf_java",
         "@com_google_protobuf//java/util",
+        "@maven//:com_fasterxml_jackson_core_jackson_databind",
         "@maven//:com_google_protobuf_protobuf_java",
         "@maven//:com_google_truth_truth",
+        "@maven//:jakarta_inject_jakarta_inject_api",
         "@maven//:junit_junit",
         "@maven//:org_mockito_mockito_core",
     ],
@@ -50,16 +56,35 @@ java_test(
 )
 
 java_test(
+    name = "PublisherVerifierTest",
+    size = "small",
+    srcs = ["PublisherVerifierTest.java"],
+    test_class = "com.google.pes.domain.PublisherVerifierTest",
+    deps = [
+        "//java/com/google/pes/domain",
+        "//java/com/google/pes/domain/metric",
+        "//java/com/google/pes/domain/model",
+        "//java/com/google/pes/domain/ports",
+        "@com_google_protobuf//:protobuf_java",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+        "@maven//:org_mockito_mockito_core",
+    ],
+)
+
+java_test(
     name = "PublicEndorsementServiceTest",
     size = "small",
     srcs = ["PublicEndorsementServiceTest.java"],
     test_class = "com.google.pes.domain.PublicEndorsementServiceTest",
     deps = [
         "//java/com/google/pes/domain",
+        "//java/com/google/pes/domain/metric",
         "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
         "@com_google_protobuf//:protobuf_java",
         "@com_google_protobuf//java/util",
+        "@maven//:com_fasterxml_jackson_core_jackson_databind",
         "@maven//:com_google_inject_guice",
         "@maven//:com_google_protobuf_protobuf_java",
         "@maven//:com_google_truth_truth",
@@ -67,5 +92,19 @@ java_test(
         "@maven//:junit_junit",
         "@maven//:org_mockito_mockito_core",
         "@pcit_mbs//java/com/google/mbs:certmanagement",
+    ],
+)
+
+java_test(
+    name = "TrustDomainExtractorTest",
+    size = "small",
+    srcs = ["TrustDomainExtractorTest.java"],
+    test_class = "com.google.pes.domain.TrustDomainExtractorTest",
+    deps = [
+        "//java/com/google/pes/domain",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+        "@maven//:org_bouncycastle_bcprov_jdk18on",
+        "@maven//:org_mockito_mockito_core",
     ],
 )

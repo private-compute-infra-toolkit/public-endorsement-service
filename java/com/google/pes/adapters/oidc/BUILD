@@ -19,7 +19,7 @@ package(default_visibility = ["//visibility:public"])
 java_library(
     name = "oidc",
     srcs = [
-        "AudienceHostname.java",
+        "AudienceValidationException.java",
         "JwksUriProvider.java",
         "OidcAudienceValidator.java",
         "OidcDiscoveryFetcher.java",
@@ -30,9 +30,11 @@ java_library(
         "@maven//:com_google_flogger_flogger_system_backend",
     ],
     deps = [
+        "//java/com/google/pes/annotations",
         "//java/com/google/pes/domain",
         "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
+        "//java/com/google/pes/server:aws_metadata",
         "@com_google_protobuf//:protobuf_java",
         "@com_google_protobuf//java/util",
         "@io_grpc_grpc_java//api",

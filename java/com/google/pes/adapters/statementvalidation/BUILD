@@ -28,6 +28,7 @@ java_library(
         "@maven//:com_google_flogger_flogger_system_backend",
     ],
     deps = [
+        "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
         "@com_google_protobuf//:protobuf_java",
         "@com_google_protobuf//java/util",

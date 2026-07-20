@@ -34,7 +34,7 @@ ENABLE_ENCLAVE_DEBUG_MODE="${ENABLE_WORKER_DEBUG_MODE:-0}"
 declare -a ENCLAVE_DEBUG_MODE_FLAGS=()
 
 if [[ $ENABLE_ENCLAVE_DEBUG_MODE != 0 ]]; then
-  ENCLAVE_DEBUG_MODE_FLAGS=(--debug-mode --attach-console)
+  ENCLAVE_DEBUG_MODE_FLAGS=(--debug-mode)
 fi
 
 # This function checks essential permissions required to run the worker. This
@@ -151,8 +151,18 @@ start_enclave() {
     systemd-notify ERRNO=1
     exit 1
   fi
+
   echo 0 > "${ENCLAVE_FAILURE_COUNT_FILE}"
   systemd-notify READY=1
+
+  # If debug mode is enabled, attach to the console in the background.
+  # This streams console logs to stdout, which systemd redirects to the journal
+  if [[ $ENABLE_ENCLAVE_DEBUG_MODE != 0 ]]; then
+    local enclave_id
+    enclave_id=$(nitro-cli describe-enclaves | jq -r '.[0].EnclaveID')
+    echo "Attaching to enclave console in background for enclave ${enclave_id}..."
+    nitro-cli console --enclave-id "${enclave_id}" &
+  fi
 }
 
 # Stops the first enclave running on the system (assumes only one will be running).

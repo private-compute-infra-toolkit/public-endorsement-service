@@ -46,7 +46,12 @@ public class ImdsClient {
       String environment = client.get(ENVIRONMENT_TAG_PATH).asString();
       String domain = client.get(DOMAIN_TAG_PATH).asString();
 
-      return new AwsInstanceMetadata(region, accountId, environment, domain);
+      return AwsInstanceMetadata.builder()
+          .setRegion(region)
+          .setAccountId(accountId)
+          .setEnvironment(environment)
+          .setDomain(domain)
+          .build();
     } catch (Exception e) {
       throw new RuntimeException("Failed to fetch EC2 Instance Identity Document via IMDS.", e);
     }

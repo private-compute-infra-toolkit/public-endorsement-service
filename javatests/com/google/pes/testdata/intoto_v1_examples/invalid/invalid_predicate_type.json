@@ -1,0 +1,15 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "predicateType": "https://invalid.predicate.type/v1",
+  "subject": [
+    {
+      "name": "sub",
+      "digest": {
+        "sha256": "1234"
+      }
+    }
+  ],
+  "predicate": {
+    "issuedOn": "2026-06-01T00:00:00Z"
+  }
+}

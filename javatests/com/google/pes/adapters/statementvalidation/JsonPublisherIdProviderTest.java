@@ -67,17 +67,6 @@ public final class JsonPublisherIdProviderTest {
   }
 
   @Test
-  public void getValidPublisherId_legacyPublisherClaim_succeeds() throws Exception {
-    String json = loadTestData("valid/correct_only_publisher_claim.json").toStringUtf8();
-    String modifiedJson =
-        json.replace(Claim.PUBLISHER_CLAIM_TYPE, Claim.LEGACY_PUBLISHER_CLAIM_TYPE);
-    ByteString statementBytes = ByteString.copyFromUtf8(modifiedJson);
-
-    String publisherId = validator.getValidPublisherId(statementBytes);
-    assertThat(publisherId).isEqualTo("release@google.com");
-  }
-
-  @Test
   public void getValidPublisherId_correct2_succeeds() throws Exception {
     ByteString statementBytes = loadTestData("valid/correct_multiple_claims.json");
     String publisherId = validator.getValidPublisherId(statementBytes);

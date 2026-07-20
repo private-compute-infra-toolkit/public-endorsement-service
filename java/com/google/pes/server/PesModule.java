@@ -31,7 +31,7 @@ import com.google.mbs.MbsCertificateFactory;
 import com.google.mbs.MeasurementBoundCertificateProvider;
 import com.google.mbs.attestationcollection.AttestationCollector;
 import com.google.mbs.attestationcollection.aws.AwsAttestationModule;
-import com.google.pes.adapters.oidc.AudienceHostname;
+import com.google.pes.adapters.SystemMetrics;
 import com.google.pes.adapters.oidc.OidcDiscoveryFetcher;
 import com.google.pes.adapters.oidc.OidcJwksKeyFetcher;
 import com.google.pes.adapters.oidc.OidcJwksKeyLocator;
@@ -44,7 +44,10 @@ import com.google.pes.adapters.tlog.TLedgerCertBucketName;
 import com.google.pes.adapters.tlog.TLedgerCertName;
 import com.google.pes.annotations.PolicyBucket;
 import com.google.pes.annotations.TLedgerUrl;
+import com.google.pes.annotations.TrustDomain;
 import com.google.pes.domain.JwtAuth;
+import com.google.pes.domain.TrustDomainExtractor;
+import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.Statement;
 import com.google.pes.domain.ports.PolicyProvider;
 import com.google.pes.domain.ports.PublisherIdProvider;
@@ -54,17 +57,24 @@ import com.google.pes.domain.ports.TLog;
 import com.google.tlog.TlogEntry;
 import com.google.tlog.TransparencyLogClient;
 import io.jsonwebtoken.Locator;
+import io.micrometer.core.instrument.config.MeterFilter;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import jakarta.inject.Singleton;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.PrivateKey;
+import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Optional;
+import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.util.Timeout;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
@@ -95,7 +105,7 @@ public class PesModule extends AbstractModule {
     bind(String.class)
         .annotatedWith(PolicyBucket.class)
         .toInstance(awsResourceNames.configBucketName());
-    bind(String.class).annotatedWith(AudienceHostname.class).toInstance("pes.pcit.goog");
+    bind(AwsInstanceMetadata.class).toInstance(awsInstanceMetadata);
 
     bind(String.class)
         .annotatedWith(TLedgerCertBucketName.class)
@@ -114,6 +124,8 @@ public class PesModule extends AbstractModule {
     bind(PolicyProvider.class).to(S3PolicyProvider.class);
     bind(SignatureGenerator.class).to(SignatureGeneratorImpl.class);
     bind(SignatureVerifier.class).to(SignatureVerifierImpl.class);
+    bind(Metrics.class).to(SystemMetrics.class);
+    bind(com.google.mbs.Metrics.class).to(SystemMetrics.class);
 
     install(new AwsKmsClientModule(awsInstanceMetadata.region()));
     install(new AwsAttestationModule());
@@ -142,7 +154,8 @@ public class PesModule extends AbstractModule {
       S3Client s3Client,
       KmsClientInterface kmsClient,
       TransparencyLogClient transparencyLogClient,
-      AttestationCollector attestationCollector) {
+      AttestationCollector attestationCollector,
+      com.google.mbs.Metrics metrics) {
 
     String resourceNamesJson = new Gson().toJson(awsResourceNames);
     byte[] userData = resourceNamesJson.getBytes(StandardCharsets.UTF_8);
@@ -172,17 +185,42 @@ public class PesModule extends AbstractModule {
             MbsCertificateFactory.createSelfSignedCertificatesFactory(
                 new MbsCertificateFactory.CertSignatureSpec("RSA", 4096, "SHA256withRSA"),
                 new X500Name("C=US, O=Google LLC, CN=PES"),
-                Duration.ofDays(120),
+                // 90 days from 2027-02-01
+                // The notAfter of TCA and Tledger is set to 2027-02-01: deadline for initial
+                // PCIT root certs.
+                // Because PES root cert's notAfter must be later than endorsement' notAfter,
+                // add 90 days offset to PES root cert.
+                Duration.between(Instant.now(), Instant.parse("2027-05-02T00:00:00Z")),
                 san,
-                KeyUsage.digitalSignature));
+                KeyUsage.digitalSignature),
+            metrics);
 
     provider.loadOrGenerateCertificate();
     return provider;
   }
 
   @Provides
+  @Singleton
+  X509Certificate provideRootCertificate(MeasurementBoundCertificateProvider mbsProvider) {
+    return mbsProvider.loadOrGenerateCertificate().getCertificate();
+  }
+
+  @Provides
+  @Singleton
+  @TrustDomain
+  String provideTrustDomain(X509Certificate rootCertificate)
+      throws CertificateParsingException, java.net.URISyntaxException {
+    return TrustDomainExtractor.extract(rootCertificate);
+  }
+
+  @Provides
   CloseableHttpClient providesHttpClient() {
-    return HttpClients.createDefault();
+    RequestConfig requestConfig =
+        RequestConfig.custom()
+            .setResponseTimeout(Timeout.ofSeconds(10))
+            .setConnectionRequestTimeout(Timeout.ofSeconds(5))
+            .build();
+    return HttpClients.custom().setDefaultRequestConfig(requestConfig).build();
   }
 
   @Provides
@@ -226,6 +264,18 @@ public class PesModule extends AbstractModule {
   @Singleton
   public ObjectMapper provideObjectMapper() {
     return new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+  }
+
+  @Provides
+  @Singleton
+  public PrometheusMeterRegistry providePrometheusMeterRegistry() {
+    PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+    registry
+        .config()
+        .meterFilter(MeterFilter.acceptNameStartsWith("pes."))
+        .meterFilter(MeterFilter.acceptNameStartsWith("armeria.server.connections"))
+        .meterFilter(MeterFilter.deny());
+    return registry;
   }
 
   private static String constructTrustDomain(String env, String domain) {

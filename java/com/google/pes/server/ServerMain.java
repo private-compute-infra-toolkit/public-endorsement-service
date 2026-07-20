@@ -22,15 +22,7 @@ import com.google.common.flogger.FluentLogger;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.pes.adapters.tlog.TLedger;
-import com.linecorp.armeria.common.HttpResponse;
-import com.linecorp.armeria.common.HttpStatus;
-import com.linecorp.armeria.server.Server;
-import com.linecorp.armeria.server.grpc.GrpcService;
-import com.linecorp.armeria.server.logging.LoggingService;
-import io.grpc.ServerInterceptors;
-import io.grpc.health.v1.HealthCheckResponse.ServingStatus;
-import io.grpc.protobuf.services.ProtoReflectionService;
-import java.util.concurrent.atomic.AtomicReference;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 /** A gRPC and HTTP server that hosts the Public Endorsement Service. */
 public class ServerMain {
@@ -62,37 +54,15 @@ public class ServerMain {
     PesGrpcHandler service = injector.getInstance(PesGrpcHandler.class);
     JwtInterceptor jwtInterceptor = injector.getInstance(JwtInterceptor.class);
     TLedger tLedger = injector.getInstance(TLedger.class);
-
-    HealthManager healthManager = new HealthManager(tLedger);
+    PrometheusMeterRegistry meterRegistry = injector.getInstance(PrometheusMeterRegistry.class);
+    CertificateValidityReporter validityReporter =
+        injector.getInstance(CertificateValidityReporter.class);
+    validityReporter.startAsync();
 
     int port = 50051;
-    GrpcService grpcService =
-        GrpcService.builder()
-            .addService(ServerInterceptors.intercept(service, jwtInterceptor))
-            .addService(ProtoReflectionService.newInstance())
-            .enableHttpJsonTranscoding(true)
-            .build();
+    PesServer pesServer = new PesServer(port, service, jwtInterceptor, tLedger, meterRegistry);
 
-    Server server =
-        Server.builder()
-            .http(port)
-            .service(grpcService)
-            .service(
-                "/healthz",
-                (ctx, req) -> {
-                  if (healthManager.isServing()) {
-                    return HttpResponse.of(HttpStatus.OK);
-                  }
-                  return HttpResponse.of(HttpStatus.SERVICE_UNAVAILABLE);
-                })
-            .decorator(LoggingService.newDecorator())
-            .build();
-
-    server.start().join();
-
-    logger.atInfo().log("Server started, listening on %d.", port);
-
-    healthManager.setStatus(ServingStatus.SERVING);
+    pesServer.start().join();
 
     Runtime.getRuntime()
         .addShutdownHook(
@@ -100,34 +70,16 @@ public class ServerMain {
               @Override
               public void run() {
                 System.err.println("*** shutting down Armeria server since JVM is shutting down");
-                healthManager.setStatus(ServingStatus.NOT_SERVING);
-                server.stop().join();
+                pesServer.stop().join();
+                validityReporter.stopAsync();
                 System.err.println("*** server shut down");
               }
             });
 
     try {
-      server.blockUntilShutdown();
+      pesServer.blockUntilShutdown();
     } catch (InterruptedException e) {
       logger.atInfo().log("Server interrupted.");
-    }
-  }
-
-  private static class HealthManager {
-    private final AtomicReference<ServingStatus> currentStatus;
-    private final TLedger tLedger;
-
-    HealthManager(TLedger tLedger) {
-      this.tLedger = tLedger;
-      this.currentStatus = new AtomicReference<>(ServingStatus.UNKNOWN);
-    }
-
-    synchronized void setStatus(ServingStatus status) {
-      currentStatus.set(status);
-    }
-
-    boolean isServing() {
-      return currentStatus.get() == ServingStatus.SERVING && tLedger.isHealthy();
     }
   }
 }

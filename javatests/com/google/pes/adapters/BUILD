@@ -127,3 +127,32 @@ java_test(
         "@maven//:junit_junit",
     ],
 )
+
+java_test(
+    name = "SystemMetricsTest",
+    size = "small",
+    srcs = ["SystemMetricsTest.java"],
+    test_class = "com.google.pes.adapters.SystemMetricsTest",
+    deps = [
+        "//java/com/google/pes/adapters",
+        "//java/com/google/pes/domain/metric",
+        "@maven//:com_google_truth_truth",
+        "@maven//:io_micrometer_micrometer_core",
+        "@maven//:io_micrometer_micrometer_registry_prometheus",
+        "@maven//:junit_junit",
+    ],
+)
+
+java_test(
+    name = "OidcAudienceValidatorTest",
+    size = "small",
+    srcs = ["oidc/OidcAudienceValidatorTest.java"],
+    test_class = "com.google.pes.adapters.oidc.OidcAudienceValidatorTest",
+    deps = [
+        "//java/com/google/pes/adapters/oidc",
+        "//java/com/google/pes/server:aws_metadata",
+        "@maven//:io_jsonwebtoken_jjwt_api",
+        "@maven//:junit_junit",
+        "@maven//:org_mockito_mockito_core",
+    ],
+)

@@ -36,13 +36,6 @@ public final class ClaimTest {
   }
 
   @Test
-  public void constructor_validPublisherClaimWithLegacyType_succeeds() {
-    Map<String, String> annotations = Map.of("publisher_id", "release@google.com");
-    Claim claim = new Claim(Claim.LEGACY_PUBLISHER_CLAIM_TYPE, annotations);
-    assertThat(claim.getType()).isEqualTo(Claim.LEGACY_PUBLISHER_CLAIM_TYPE);
-  }
-
-  @Test
   public void constructor_publisherClaimMissingAnnotations_throws() {
     IllegalArgumentException e =
         assertThrows(
@@ -190,13 +183,6 @@ public final class ClaimTest {
     Claim claim = new Claim(Claim.WORKLOAD_CLAIM_TYPE, annotations);
     assertThat(claim.getType()).isEqualTo(Claim.WORKLOAD_CLAIM_TYPE);
     assertThat(claim.getAnnotations()).isEqualTo(annotations);
-  }
-
-  @Test
-  public void constructor_validWorkloadClaimWithLegacyType_succeeds() {
-    Map<String, String> annotations = Map.of("workload_id", "workload-123");
-    Claim claim = new Claim(Claim.LEGACY_WORKLOAD_CLAIM_TYPE, annotations);
-    assertThat(claim.getType()).isEqualTo(Claim.LEGACY_WORKLOAD_CLAIM_TYPE);
   }
 
   @Test

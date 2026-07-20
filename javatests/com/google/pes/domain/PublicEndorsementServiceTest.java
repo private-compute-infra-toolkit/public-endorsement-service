@@ -22,25 +22,24 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.google.inject.Provider;
+import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.Endorsement;
 import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.Statement;
 import com.google.pes.domain.model.TLogReceipt;
 import com.google.pes.domain.model.VerificationMaterial;
+import com.google.pes.domain.model.VerifiedEndorsement;
 import com.google.pes.domain.ports.InvalidSignatureException;
 import com.google.pes.domain.ports.PesSignatureException;
-import com.google.pes.domain.ports.PolicyException;
-import com.google.pes.domain.ports.PublisherIdProvider;
 import com.google.pes.domain.ports.SignatureGenerator;
 import com.google.pes.domain.ports.SignatureVerifier;
 import com.google.pes.domain.ports.TLog;
 import com.google.pes.domain.ports.TLogException;
 import com.google.protobuf.ByteString;
 import java.util.List;
-import java.util.Map;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -51,10 +50,10 @@ import org.mockito.junit.MockitoJUnitRunner;
 public class PublicEndorsementServiceTest {
 
   @Mock private TLog mockTLog;
-  @Mock private PublisherIdProvider mockPublisherIdProvider;
-  @Mock private PublisherVerifier mockPublisherVerifier;
+  @Mock private EndorsementVerifier mockEndorsementVerifier;
   @Mock private SignatureGenerator mockSignatureGenerator;
   @Mock private SignatureVerifier mockSignatureVerifier;
+  @Mock private Metrics mockMetrics;
 
   private PublicEndorsementService publicEndorsementService;
   Statement STATEMENT =
@@ -75,17 +74,16 @@ public class PublicEndorsementServiceTest {
     publicEndorsementService =
         new PublicEndorsementService(
             mockTLog,
-            Map.of(
-                Statement.Format.JSON_INTOTO,
-                (Provider<PublisherIdProvider>) () -> mockPublisherIdProvider),
-            mockPublisherVerifier,
+            mockEndorsementVerifier,
             mockSignatureGenerator,
-            mockSignatureVerifier);
+            mockSignatureVerifier,
+            mockMetrics);
   }
 
   @Test
   public void createEndorsement_success() {
-    when(mockPublisherIdProvider.getValidPublisherId(any())).thenReturn("publisherId");
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
+        .thenReturn(new VerifiedEndorsement("publisherId"));
     TLogReceipt tLogReceipt = new TLogReceipt("logId");
     when(mockTLog.post(any())).thenReturn(tLogReceipt);
 
@@ -108,9 +106,10 @@ public class PublicEndorsementServiceTest {
     assertThat(result.tLogReceipt()).isEqualTo(tLogReceipt);
     assertThat(result.name()).startsWith("endorsements/");
 
-    verify(mockPublisherVerifier)
-        .verify(eq("publisherId"), eq(TEST_IDENTITY), eq(STATEMENT_SIGNATURE));
+    verify(mockEndorsementVerifier)
+        .parseAndVerify(eq(STATEMENT), eq(TEST_IDENTITY), eq(STATEMENT_SIGNATURE));
     verify(mockSignatureVerifier).verify(eq(STATEMENT_SIGNATURE), eq(STATEMENT.serialized()));
+    verify(mockMetrics).incrementEndorsementCounter(eq("publisherId"));
   }
 
   @Test
@@ -122,21 +121,37 @@ public class PublicEndorsementServiceTest {
     assertThrows(
         IllegalArgumentException.class,
         () -> publicEndorsementService.createEndorsement(inputEndorsement, TEST_IDENTITY));
+    verifyNoInteractions(mockMetrics);
+  }
+
+  @Test
+  public void createEndorsement_endorsementVerifierThrowsException_propagatesException() {
+    doThrow(new IllegalArgumentException("Verification failed"))
+        .when(mockEndorsementVerifier)
+        .parseAndVerify(any(), any(), any());
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> publicEndorsementService.createEndorsement(INPUT_ENDORSEMENT, TEST_IDENTITY));
+    verifyNoInteractions(mockMetrics);
   }
 
   @Test
   public void createEndorsement_tLogThrowsException_propagatesException() {
-    when(mockPublisherIdProvider.getValidPublisherId(any())).thenReturn("publisherId");
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
+        .thenReturn(new VerifiedEndorsement("publisherId"));
     when(mockTLog.post(any())).thenThrow(new TLogException("TLog error"));
 
     assertThrows(
         TLogException.class,
         () -> publicEndorsementService.createEndorsement(INPUT_ENDORSEMENT, TEST_IDENTITY));
+    verifyNoInteractions(mockMetrics);
   }
 
   @Test
   public void createEndorsement_signatureVerifierThrowsException_propagatesException() {
-    when(mockPublisherIdProvider.getValidPublisherId(any())).thenReturn("publisherId");
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
+        .thenReturn(new VerifiedEndorsement("publisherId"));
     doThrow(new InvalidSignatureException("Invalid sig"))
         .when(mockSignatureVerifier)
         .verify(any(), any());
@@ -144,11 +159,13 @@ public class PublicEndorsementServiceTest {
     assertThrows(
         InvalidSignatureException.class,
         () -> publicEndorsementService.createEndorsement(INPUT_ENDORSEMENT, TEST_IDENTITY));
+    verifyNoInteractions(mockMetrics);
   }
 
   @Test
   public void createEndorsement_signerThrowsException_propagatesException() {
-    when(mockPublisherIdProvider.getValidPublisherId(any())).thenReturn("publisherId");
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
+        .thenReturn(new VerifiedEndorsement("publisherId"));
     when(mockTLog.post(any())).thenReturn(new TLogReceipt("logId"));
     when(mockSignatureGenerator.generate(any()))
         .thenThrow(new PesSignatureException("Signer error"));
@@ -156,15 +173,6 @@ public class PublicEndorsementServiceTest {
     assertThrows(
         PesSignatureException.class,
         () -> publicEndorsementService.createEndorsement(INPUT_ENDORSEMENT, TEST_IDENTITY));
-  }
-
-  @Test
-  public void createEndorsement_publisherIdProviderThrowsException_propagatesException() {
-    when(mockPublisherIdProvider.getValidPublisherId(any()))
-        .thenThrow(new PolicyException("Config error"));
-
-    assertThrows(
-        PolicyException.class,
-        () -> publicEndorsementService.createEndorsement(INPUT_ENDORSEMENT, TEST_IDENTITY));
+    verifyNoInteractions(mockMetrics);
   }
 }

@@ -73,6 +73,10 @@ public class OakPredicate {
     this.claims = claims;
   }
 
+  public Validity getValidity() {
+    return validity;
+  }
+
   public List<Claim> getClaims() {
     return claims;
   }

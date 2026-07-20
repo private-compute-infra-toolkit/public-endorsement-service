@@ -16,9 +16,14 @@
 
 package com.google.pes.server;
 
+import static com.google.pes.domain.metric.AuthenticationStatus.FAILURE;
+import static com.google.pes.domain.metric.AuthenticationStatus.SUCCESS;
+
 import com.google.common.flogger.FluentLogger;
+import com.google.pes.adapters.oidc.AudienceValidationException;
 import com.google.pes.adapters.oidc.OidcAudienceValidator;
 import com.google.pes.domain.CallerIdentity;
+import com.google.pes.domain.metric.Metrics;
 import io.grpc.Context;
 import io.grpc.Contexts;
 import io.grpc.Metadata;
@@ -42,10 +47,12 @@ public final class JwtInterceptor implements ServerInterceptor {
   public static final Context.Key<Set<String>> AUDIENCE_CONTEXT_KEY = Context.key("audience");
 
   private final OidcAudienceValidator audienceValidator;
+  private final Metrics metrics;
 
   @Inject
-  public JwtInterceptor(OidcAudienceValidator audienceValidator) {
+  public JwtInterceptor(OidcAudienceValidator audienceValidator, Metrics metrics) {
     this.audienceValidator = audienceValidator;
+    this.metrics = metrics;
   }
 
   @Override
@@ -58,6 +65,7 @@ public final class JwtInterceptor implements ServerInterceptor {
       call.close(
           Status.UNAUTHENTICATED.withDescription("Missing or invalid Authorization header"),
           new Metadata());
+      metrics.incrementAuthenticationCounter(FAILURE);
       return new ServerCall.Listener<ReqT>() {};
     }
 
@@ -71,11 +79,21 @@ public final class JwtInterceptor implements ServerInterceptor {
               .withValue(ISSUER_CONTEXT_KEY, identity.issuer())
               .withValue(SUBJECT_CONTEXT_KEY, identity.subject())
               .withValue(AUDIENCE_CONTEXT_KEY, identity.audiences());
+      metrics.incrementAuthenticationCounter(SUCCESS);
       return Contexts.interceptCall(context, call, headers, next);
     } catch (JwtException e) {
       logger.atWarning().withCause(e).log("Failed to parse JWT token");
       call.close(
           Status.UNAUTHENTICATED.withDescription("Failed to parse JWT token"), new Metadata());
+      metrics.incrementAuthenticationCounter(FAILURE);
+      return new ServerCall.Listener<ReqT>() {};
+    } catch (AudienceValidationException e) {
+      logger.atWarning().withCause(e).log("OIDC audience validation failed");
+      call.close(Status.PERMISSION_DENIED.withDescription(e.getMessage()), new Metadata());
+      return new ServerCall.Listener<ReqT>() {};
+    } catch (IllegalArgumentException e) {
+      logger.atWarning().withCause(e).log("Illegal argument during OIDC validation");
+      call.close(Status.INVALID_ARGUMENT.withDescription(e.getMessage()), new Metadata());
       return new ServerCall.Listener<ReqT>() {};
     }
   }

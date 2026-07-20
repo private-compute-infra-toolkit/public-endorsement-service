@@ -23,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.pes.adapters.tlog.TLedger;
 import com.google.pes.domain.PublicEndorsementService;
 import com.google.pes.domain.model.Endorsement;
 import com.google.pes.domain.model.Signature;
@@ -38,12 +39,17 @@ import com.google.pes.v1.PublicEndorsementServiceGrpc;
 import com.google.pes.v1.VerificationMaterial;
 import com.google.pes.v1.X509Der;
 import com.google.protobuf.ByteString;
+import com.linecorp.armeria.client.WebClient;
+import com.linecorp.armeria.common.AggregatedHttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.inprocess.InProcessChannelBuilder;
-import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.testing.GrpcCleanupRule;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import java.util.Collections;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -63,11 +69,11 @@ public class PesGrpcHandlerTest {
 
   @Mock private PublicEndorsementService mockDomainService;
   private PublicEndorsementServiceGrpc.PublicEndorsementServiceBlockingStub blockingStub;
+  private PesServer pesServer;
 
   @Before
   public void setUp() throws Exception {
     mockDomainService = mock(PublicEndorsementService.class);
-    String serverName = InProcessServerBuilder.generateName();
 
     io.grpc.ServerInterceptor dummyAuthInterceptor =
         new io.grpc.ServerInterceptor() {
@@ -85,19 +91,33 @@ public class PesGrpcHandlerTest {
           }
         };
 
-    grpcCleanup.register(
-        InProcessServerBuilder.forName(serverName)
-            .directExecutor()
-            .addService(
-                io.grpc.ServerInterceptors.intercept(
-                    new PesGrpcHandler(mockDomainService), dummyAuthInterceptor))
-            .build()
-            .start());
+    TLedger mockTLedger = mock(TLedger.class);
+    when(mockTLedger.isHealthy()).thenReturn(true);
+
+    PrometheusMeterRegistry meterRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+
+    pesServer =
+        new PesServer(
+            /* port= */ 0,
+            new PesGrpcHandler(mockDomainService),
+            dummyAuthInterceptor,
+            mockTLedger,
+            meterRegistry);
+    pesServer.start().join();
 
     blockingStub =
         PublicEndorsementServiceGrpc.newBlockingStub(
             grpcCleanup.register(
-                InProcessChannelBuilder.forName(serverName).directExecutor().build()));
+                ManagedChannelBuilder.forAddress("localhost", pesServer.port())
+                    .usePlaintext()
+                    .build()));
+  }
+
+  @After
+  public void tearDown() {
+    if (pesServer != null) {
+      pesServer.stop().join();
+    }
   }
 
   @Test
@@ -246,5 +266,26 @@ public class PesGrpcHandlerTest {
                                 .setDerBytes(ByteString.copyFromUtf8("verification")))))
         .setTlogReceipt(com.google.pes.v1.TLogReceipt.newBuilder().setEntryId("logId"))
         .build();
+  }
+
+  private void triggerMetricsCollection() {
+    try {
+      blockingStub.createPublicEndorsement(CreatePublicEndorsementRequest.getDefaultInstance());
+    } catch (StatusRuntimeException e) {
+      // Expected, triggered to initialize metrics
+    }
+  }
+
+  @Test
+  public void metricsEndpoint_returnsMetrics() throws Exception {
+    triggerMetricsCollection();
+
+    WebClient client = WebClient.of("http://localhost:" + pesServer.port());
+    AggregatedHttpResponse response = client.get("/metrics").aggregate().join();
+
+    assertThat(response.status()).isEqualTo(HttpStatus.OK);
+    String content = response.contentUtf8();
+    assertThat(content).contains("pes_server");
+    assertThat(content).contains("armeria_server_connections");
   }
 }

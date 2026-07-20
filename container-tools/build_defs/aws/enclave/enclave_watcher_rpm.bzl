@@ -44,6 +44,7 @@ def enclave_watcher_rpm(name, service_name):
         srcs = [
             "@rules_aws//build_defs/aws/enclave:configure_fluent_bit.sh",
             "@rules_aws//build_defs/aws/enclave:enclave_watcher.sh",
+            "@rules_aws//build_defs/aws/metrics:configure_metrics_exporter.sh",
         ],
         mode = "0755",
         ownername = "root.root",
@@ -55,6 +56,7 @@ def enclave_watcher_rpm(name, service_name):
         srcs = [
             "@rules_aws//build_defs/aws/enclave:enclave.service",
             "@rules_aws//build_defs/aws/enclave:configure-fluent-bit.service",
+            "@rules_aws//build_defs/aws/metrics:metrics-exporter.service",
         ],
         mode = "0644",
         ownername = "root.root",

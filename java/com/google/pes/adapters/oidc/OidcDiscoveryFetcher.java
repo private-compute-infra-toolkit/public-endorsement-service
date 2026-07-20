@@ -25,10 +25,12 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 
 /** Fetches OIDC configuration from a discovery endpoint. */
 public final class OidcDiscoveryFetcher {
   private static final FluentLogger logger = FluentLogger.forEnclosingClass();
+  private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(5);
   private final HttpClient httpClient;
   private final ObjectMapper objectMapper;
 
@@ -48,7 +50,8 @@ public final class OidcDiscoveryFetcher {
   public String fetchJwksUri(String discoveryUri) throws IOException {
     try {
       logger.atInfo().log("Fetching OIDC configuration from: %s", discoveryUri);
-      HttpRequest request = HttpRequest.newBuilder().uri(URI.create(discoveryUri)).build();
+      HttpRequest request =
+          HttpRequest.newBuilder().uri(URI.create(discoveryUri)).timeout(HTTP_TIMEOUT).build();
       HttpResponse<String> response =
           httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 

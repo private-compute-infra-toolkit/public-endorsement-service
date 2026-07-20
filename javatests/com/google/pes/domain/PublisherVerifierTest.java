@@ -18,8 +18,11 @@ package com.google.pes.domain;
 
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.PublisherPolicy;
 import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.VerificationMaterial;
@@ -42,6 +45,7 @@ public class PublisherVerifierTest {
   @Rule public final MockitoRule mockito = MockitoJUnit.rule();
 
   @Mock private PolicyProvider mockPolicyProvider;
+  @Mock private Metrics mockMetrics;
 
   private PublisherVerifier verifier;
 
@@ -69,7 +73,7 @@ public class PublisherVerifierTest {
 
   @Before
   public void setUp() {
-    verifier = new PublisherVerifier(mockPolicyProvider);
+    verifier = new PublisherVerifier(mockPolicyProvider, mockMetrics);
   }
 
   @Test
@@ -78,6 +82,7 @@ public class PublisherVerifierTest {
 
     // No exception should be thrown
     verifier.verify(TEST_PUBLISHER_ID, TEST_IDENTITY, TEST_SIGNATURE);
+    verify(mockMetrics).approvePublisher(TEST_PUBLISHER_ID);
   }
 
   @Test
@@ -87,6 +92,7 @@ public class PublisherVerifierTest {
     assertThrows(
         IllegalArgumentException.class,
         () -> verifier.verify(TEST_PUBLISHER_ID, TEST_IDENTITY, TEST_SIGNATURE));
+    verifyNoInteractions(mockMetrics);
   }
 
   @Test
@@ -105,6 +111,7 @@ public class PublisherVerifierTest {
             () -> verifier.verify(TEST_PUBLISHER_ID, TEST_IDENTITY, TEST_SIGNATURE));
 
     assertThat(exception).hasMessageThat().contains("issuer");
+    verifyNoInteractions(mockMetrics);
   }
 
   @Test
@@ -123,6 +130,7 @@ public class PublisherVerifierTest {
             () -> verifier.verify(TEST_PUBLISHER_ID, TEST_IDENTITY, TEST_SIGNATURE));
 
     assertThat(exception).hasMessageThat().contains("subject");
+    verifyNoInteractions(mockMetrics);
   }
 
   @Test
@@ -135,6 +143,7 @@ public class PublisherVerifierTest {
             () -> verifier.verify("wrong-publisher-id", TEST_IDENTITY, TEST_SIGNATURE));
 
     assertThat(exception).hasMessageThat().contains("Publisher ID");
+    verifyNoInteractions(mockMetrics);
   }
 
   @Test
@@ -146,6 +155,7 @@ public class PublisherVerifierTest {
     assertThrows(
         IllegalArgumentException.class,
         () -> verifier.verify(TEST_PUBLISHER_ID, TEST_IDENTITY, signatureWithOtherMaterial));
+    verifyNoInteractions(mockMetrics);
   }
 
   @Test
@@ -159,6 +169,7 @@ public class PublisherVerifierTest {
         .thenReturn(Optional.of(configWithMultipleMaterials));
 
     verifier.verify(TEST_PUBLISHER_ID, TEST_IDENTITY, TEST_SIGNATURE);
+    verify(mockMetrics).approvePublisher(TEST_PUBLISHER_ID);
   }
 
   @Test
@@ -174,6 +185,7 @@ public class PublisherVerifierTest {
         .thenReturn(Optional.of(configWithMultipleClaims));
 
     verifier.verify(TEST_PUBLISHER_ID, TEST_IDENTITY, TEST_SIGNATURE);
+    verify(mockMetrics).approvePublisher(TEST_PUBLISHER_ID);
   }
 
   @Test
@@ -194,5 +206,6 @@ public class PublisherVerifierTest {
             () -> verifier.verify(TEST_PUBLISHER_ID, TEST_IDENTITY, TEST_SIGNATURE));
 
     assertThat(exception).hasMessageThat().contains("mismatch");
+    verifyNoInteractions(mockMetrics);
   }
 }

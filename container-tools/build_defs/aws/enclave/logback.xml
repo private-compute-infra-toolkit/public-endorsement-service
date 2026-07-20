@@ -15,6 +15,7 @@
 -->
 
 <configuration>
+    <shutdownHook/>
     <appender name="TCP" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
         <destination>${logging.host}:${logging.port}</destination>
 

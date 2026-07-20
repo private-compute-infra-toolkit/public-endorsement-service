@@ -88,6 +88,7 @@ def _packer_worker_ami_impl(ctx):
     script_template = """#!/bin/bash
 set -e
 echo "Preparing to run Packer ({packer})"
+
 echo "Packer config:"
 echo "-------------------------"
 cat {packer_file}

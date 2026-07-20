@@ -1,0 +1,27 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "sub",
+      "digest": {
+        "sha256": "1234"
+      }
+    }
+  ],
+  "predicateType": "https://project-oak.github.io/oak/tr/endorsement/v1",
+  "predicate": {
+    "issuedOn": "2026-06-01T00:00:00Z",
+    "validity": {
+      "notBefore": "2026-06-01T00:00:00Z",
+      "notAfter": "2026-09-01T00:00:00Z"
+    },
+    "claims": [
+      {
+        "type": "https://github.com/private-compute-infra-toolkit/public-endorsement-service/blob/main/docs/claims/publisher.md",
+        "annotations": {
+          "publisher_id": "role@example.com"
+        }
+      }
+    ]
+  }
+}

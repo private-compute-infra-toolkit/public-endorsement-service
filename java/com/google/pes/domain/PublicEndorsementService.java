@@ -17,19 +17,18 @@
 package com.google.pes.domain;
 
 import com.google.common.flogger.FluentLogger;
+import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.Endorsement;
 import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.Statement;
 import com.google.pes.domain.model.TLogReceipt;
-import com.google.pes.domain.ports.PublisherIdProvider;
+import com.google.pes.domain.model.VerifiedEndorsement;
 import com.google.pes.domain.ports.SignatureGenerator;
 import com.google.pes.domain.ports.SignatureVerifier;
 import com.google.pes.domain.ports.TLog;
 import com.google.protobuf.ByteString;
 import jakarta.inject.Inject;
-import jakarta.inject.Provider;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -42,23 +41,23 @@ public class PublicEndorsementService {
   private static final String NAME_PREFIX = "endorsements/";
 
   private final TLog tLog;
-  private final Map<Statement.Format, Provider<PublisherIdProvider>> publisherIdProviders;
-  private final PublisherVerifier publisherVerifier;
+  private final EndorsementVerifier endorsementVerifier;
   private final SignatureGenerator signatureGenerator;
   private final SignatureVerifier signatureVerifier;
+  private final Metrics metrics;
 
   @Inject
   PublicEndorsementService(
       TLog tLog,
-      Map<Statement.Format, Provider<PublisherIdProvider>> publisherIdProviders,
-      PublisherVerifier publisherVerifier,
+      EndorsementVerifier endorsementVerifier,
       SignatureGenerator signatureGenerator,
-      SignatureVerifier signatureVerifier) {
+      SignatureVerifier signatureVerifier,
+      Metrics metrics) {
     this.tLog = tLog;
-    this.publisherIdProviders = publisherIdProviders;
-    this.publisherVerifier = publisherVerifier;
+    this.endorsementVerifier = endorsementVerifier;
     this.signatureGenerator = signatureGenerator;
     this.signatureVerifier = signatureVerifier;
+    this.metrics = metrics;
   }
 
   /**
@@ -72,11 +71,10 @@ public class PublicEndorsementService {
     if (publicEndorsement.statement().format() == Statement.Format.FORMAT_UNSPECIFIED) {
       throw new IllegalArgumentException("The statement format has to be specified");
     }
-    PublisherIdProvider publisherIdProvider =
-        publisherIdProviders.get(publicEndorsement.statement().format()).get();
-    String publisherId =
-        publisherIdProvider.getValidPublisherId(publicEndorsement.statement().serialized());
-    publisherVerifier.verify(publisherId, identity, publicEndorsement.statementSignature());
+
+    VerifiedEndorsement verifiedEndorsement =
+        endorsementVerifier.parseAndVerify(
+            publicEndorsement.statement(), identity, publicEndorsement.statementSignature());
 
     signatureVerifier.verify(
         publicEndorsement.statementSignature(), publicEndorsement.statement().serialized());
@@ -98,6 +96,8 @@ public class PublicEndorsementService {
         PreAuthenticationEncoding.calculate(
             publicEndorsement.statement(), publicEndorsement.statementSignature(), tLogReceipt);
     Signature endorsementSignature = signatureGenerator.generate(dataToSign);
+
+    metrics.incrementEndorsementCounter(verifiedEndorsement.publisherId());
 
     return new Endorsement(
         endorsementName,

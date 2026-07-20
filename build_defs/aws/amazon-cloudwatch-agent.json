@@ -1,0 +1,53 @@
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "logfile": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log"
+  },
+  "logs": {
+    "metrics_collected": {
+      "prometheus": {
+        "log_group_name": "pes-metrics-logs",
+        "prometheus_config_path": "/opt/aws/amazon-cloudwatch-agent/etc/prometheus.yaml",
+        "emf_processor": {
+          "metric_namespace": "PES",
+          "metric_declaration": [
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^pes$",
+              "dimensions": [["method", "status"]],
+              "metric_selectors": [
+                "^pes_server_total_duration_seconds_count$",
+                "^pes_server_total_duration_seconds_sum$",
+                "^pes_server_requests_total$"
+              ]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^pes$",
+              "dimensions": [["status"]],
+              "metric_selectors": ["^pes_authenticationStatus_total$"]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^pes$",
+              "dimensions": [["publisher_id"]],
+              "metric_selectors": ["^pes_endorsementGeneration_total$"]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^pes$",
+              "dimensions": [["status"]],
+              "metric_selectors": ["^pes_mbsStatus$"]
+            },
+            {
+              "source_labels": ["job"],
+              "label_matcher": "^pes$",
+              "dimensions": [[]],
+              "metric_selectors": ["^pes_root_certificate_validity_seconds$"]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

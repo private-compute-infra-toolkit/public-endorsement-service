@@ -840,69 +840,6 @@
         ]
       }
     },
-    "@@oak+//bazel/crates:extensions.bzl%aliased_crates_repository": {
-      "general": {
-        "bzlTransitiveDigest": "Zf6AzDrHfaET/YqUjWFG4HMbu+Tfh9LniGglukRwmuA=",
-        "usagesDigest": "LEHSNURn6AVaBcoRITyx9Figv0Xur6atjdkrTiP6Ajc=",
-        "recordedFileInputs": {
-          "@@oak+//MODULE.bazel": "3f95451e57b22243f11ff194a8500547ec2c0adf0efa8bc8ceb84e0a0cfa5824"
-        },
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-        "generatedRepoSpecs": {
-          "oak_crates_index": {
-            "repoRuleId": "@@oak+//bazel/crates:aliasing_crates_repository.bzl%aliasing_crates_repository",
-            "attributes": {
-              "repositories": [
-                "{\"conditions\":[\"@@oak+//:x86_64-none-setting\",\"@@oak+//:wasm32-none-setting\"],\"name\":\"oak_no_std_crates_index\",\"overrides\":{\"prost\":\"@@oak++load_patched_crates+prost_types_oak_patched//:prost\",\"prost-types\":\"@@oak++load_patched_crates+prost_types_oak_patched//:prost-types\"},\"packages\":[\"acpi\",\"aead\",\"aes-gcm\",\"aml\",\"anyhow\",\"arrayvec\",\"atomic_refcell\",\"base64\",\"bitflags\",\"bitvec\",\"bytes\",\"chrono\",\"ciborium\",\"const-oid\",\"coset\",\"derive_builder\",\"ecdsa\",\"ed25519-dalek\",\"elf\",\"embedded-io\",\"getrandom\",\"goblin\",\"hashbrown\",\"hex\",\"hkdf\",\"hmac\",\"hpke\",\"itertools\",\"lazy_static\",\"libm\",\"linked_list_allocator\",\"lock_api\",\"log\",\"maplit\",\"mockall\",\"nom\",\"p256\",\"p384\",\"pkcs8\",\"primeorder\",\"prost\",\"rand_chacha\",\"rand_core\",\"regex-lite\",\"rlsf\",\"rsa\",\"rs_merkle\",\"self_cell\",\"serde\",\"serde_json\",\"sha2\",\"sha3\",\"spinning_top\",\"static_assertions\",\"strum\",\"thiserror\",\"uart_16550\",\"virtio-drivers\",\"wasm-bindgen\",\"wasmi\",\"x509-cert\",\"x509-verify\",\"x86_64\",\"zerocopy\",\"zeroize\"]}",
-                "{\"conditions\":[\"@@oak+//:x86_64-none-no_avx-setting\"],\"name\":\"oak_no_std_no_avx_crates_index\",\"overrides\":{\"prost\":\"@@oak++load_patched_crates+prost_types_oak_patched//:prost\",\"prost-types\":\"@@oak++load_patched_crates+prost_types_oak_patched//:prost-types\"},\"packages\":[\"acpi\",\"aead\",\"aes-gcm\",\"aml\",\"anyhow\",\"arrayvec\",\"atomic_refcell\",\"base64\",\"bitflags\",\"bitvec\",\"bytes\",\"chrono\",\"ciborium\",\"const-oid\",\"coset\",\"derive_builder\",\"ecdsa\",\"ed25519-dalek\",\"elf\",\"getrandom\",\"goblin\",\"hashbrown\",\"hex\",\"hkdf\",\"hmac\",\"hpke\",\"itertools\",\"lazy_static\",\"libm\",\"linked_list_allocator\",\"lock_api\",\"log\",\"maplit\",\"mockall\",\"nom\",\"p256\",\"p384\",\"pkcs8\",\"primeorder\",\"prost\",\"rand_chacha\",\"rand_core\",\"regex-lite\",\"rlsf\",\"rsa\",\"rs_merkle\",\"self_cell\",\"serde\",\"serde_json\",\"sha2\",\"sha3\",\"spinning_top\",\"static_assertions\",\"strum\",\"thiserror\",\"uart_16550\",\"wasmi\",\"x509-cert\",\"x509-verify\",\"x86_64\",\"zerocopy\",\"zeroize\"]}",
-                "{\"conditions\":[\"//conditions:default\"],\"name\":\"oak_std_crates_index\",\"overrides\":{},\"packages\":[\"acpi\",\"aead\",\"aes-gcm\",\"aml\",\"anyhow\",\"arrayvec\",\"assert-json-diff\",\"assertables\",\"async-stream\",\"async-trait\",\"atomic_refcell\",\"axum\",\"base64\",\"bitflags\",\"bitvec\",\"bytes\",\"chrono\",\"ciborium\",\"clap\",\"colored\",\"command-fds\",\"command-group\",\"const-oid\",\"coset\",\"criterion\",\"criterion-macro\",\"derive_builder\",\"ecdsa\",\"ed25519-dalek\",\"elf\",\"env_logger\",\"flate2\",\"futures\",\"futures-util\",\"getrandom\",\"goblin\",\"googletest\",\"hashbrown\",\"hex\",\"hkdf\",\"hmac\",\"hpke\",\"http\",\"http-body-util\",\"humantime-serde\",\"hyper\",\"hyper-util\",\"indicatif\",\"itertools\",\"jni\",\"jwt\",\"lazy_static\",\"libm\",\"linked_list_allocator\",\"lock_api\",\"log\",\"maplit\",\"mockall\",\"nix\",\"nom\",\"oci-client\",\"oci-spec\",\"once_cell\",\"openssl\",\"opentelemetry\",\"opentelemetry-appender-tracing\",\"opentelemetry-otlp\",\"opentelemetry-proto\",\"opentelemetry_sdk\",\"os_pipe\",\"ouroboros\",\"p256\",\"p384\",\"parking_lot\",\"pem\",\"pkcs8\",\"port_check\",\"portpicker\",\"pprof\",\"pretty_assertions\",\"primeorder\",\"procfs\",\"proptest\",\"prost\",\"prost-build\",\"prost-derive\",\"prost-types\",\"quote\",\"rand\",\"rand_chacha\",\"rand_core\",\"regex\",\"regex-lite\",\"reqwest\",\"rlsf\",\"rmcp\",\"rmcp-macros\",\"rpassword\",\"rsa\",\"rs_merkle\",\"rtnetlink\",\"rustls\",\"rustls-pemfile\",\"rustls-pki-types\",\"self_cell\",\"serde\",\"serde_json\",\"yaml_serde\",\"sha2\",\"sha3\",\"signal-hook\",\"signal-hook-tokio\",\"spinning_top\",\"static_assertions\",\"strum\",\"syn\",\"syslog\",\"tar\",\"tempfile\",\"thiserror\",\"tikv-jemallocator\",\"tokio\",\"tokio-stream\",\"tokio-tungstenite\",\"tokio-util\",\"tokio-vsock\",\"toml\",\"tonic\",\"tonic-prost\",\"tonic-prost-build\",\"tower\",\"tower-http\",\"tracing\",\"tracing-subscriber\",\"tungstenite\",\"uart_16550\",\"ubyte\",\"ureq\",\"url\",\"walkdir\",\"waki\",\"wasmi\",\"wasmtime\",\"which\",\"x509-cert\",\"x509-verify\",\"x86_64\",\"xz2\",\"zerocopy\",\"zeroize\"]}"
-              ]
-            }
-          }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "oak+",
-            "bazel_tools",
-            "bazel_tools"
-          ],
-          [
-            "oak+",
-            "prost_types_oak_patched",
-            "oak++load_patched_crates+prost_types_oak_patched"
-          ]
-        ]
-      }
-    },
-    "@@oak+//bazel/crates:extensions.bzl%load_patched_crates": {
-      "general": {
-        "bzlTransitiveDigest": "Zf6AzDrHfaET/YqUjWFG4HMbu+Tfh9LniGglukRwmuA=",
-        "usagesDigest": "VcSAnitWnaY32ilvigcD6d+v+o2ERjwRWyIsCHppfR4=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-        "generatedRepoSpecs": {
-          "prost_types_oak_patched": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
-            "attributes": {
-              "build_file_content": "\nload(\"@rules_rust//rust:defs.bzl\", \"rust_library\")\n\npackage(\n    default_visibility = [\"//visibility:public\"],\n)\n\nrust_library(\n    name = \"prost\",\n    compile_data = [\"prost-0.14.3/prost/README.md\"],\n    srcs = glob([\"prost-0.14.3/prost/src/**\"]),\n    deps = [\"@oak_crates_index//:bytes\"],\n    proc_macro_deps = [\"@oak_crates_index//:prost-derive\"],\n    crate_features =[\"derive\", \"prost-derive\"],\n)\n\nrust_library(\n    name = \"prost-types\",\n    srcs = glob([\"prost-0.14.3/prost-types/src/*\"]),\n    proc_macro_deps = [\n        \"@oak_crates_index//:prost-derive\",\n    ],\n    deps = [\n        \"@oak_crates_index//:prost\",\n    ],\n)\n        ",
-              "integrity": "sha256-+mG3Il4QDcYUVhQIOXFDx6e6B7Y8heWFhvTnJ4fzxeU",
-              "urls": [
-                "https://github.com/tokio-rs/prost/archive/refs/tags/v0.14.3.tar.gz"
-              ]
-            }
-          }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "oak+",
-            "bazel_tools",
-            "bazel_tools"
-          ]
-        ]
-      }
-    },
     "@@oak+//bazel/rust:extensions.bzl%rust_toolchains": {
       "general": {
         "bzlTransitiveDigest": "jE8WF78hz2Bk8w1lGl96ejHIES5o34XhS/DlmF2URNE=",
@@ -1945,81 +1882,6 @@
         ]
       }
     },
-    "@@oak+//oak_containers/kernel/internal:extensions.bzl%nix_kernels": {
-      "general": {
-        "bzlTransitiveDigest": "Kew9Ku5ygFNNlV5CdKYCY5pd8QgKQH1eQ/RsSSHg09c=",
-        "usagesDigest": "rZqiC8kNUBENTAqDX3b33VZRro7il6QAmY2g9L+fVQQ=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-        "generatedRepoSpecs": {
-          "nixpkgs": {
-            "repoRuleId": "@@rules_nixpkgs_core+//:nixpkgs.bzl%_nixpkgs_http_repository",
-            "attributes": {
-              "unmangled_name": "nixpkgs",
-              "url": "https://github.com/NixOS/nixpkgs/archive/nixos-24.05-small.tar.gz",
-              "sha256": "3d46aeea9dc75f3e87e70540c3eeb56c9c3a63baa2af8438f8bfab62a73e7337",
-              "strip_prefix": "nixpkgs-nixos-24.05-small"
-            }
-          },
-          "nix_vanilla_linux_kernel": {
-            "repoRuleId": "@@rules_nixpkgs_core+//:nixpkgs.bzl%_nixpkgs_package",
-            "attributes": {
-              "unmangled_name": "nix_vanilla_linux_kernel",
-              "attribute_path": "",
-              "nix_file": "@@oak+//oak_containers/kernel:vanilla-kernel.nix",
-              "nix_file_deps": {
-                "@@oak+//oak_containers/kernel:kernel-common.nix": "//oak_containers/kernel:kernel-common.nix",
-                "@@oak+//oak_containers/kernel:kernel_version.txt": "//oak_containers/kernel:kernel_version.txt",
-                "@@oak+//oak_containers/kernel/configs/6.12.74:minimal.config": "//oak_containers/kernel/configs/6.12.74:minimal.config"
-              },
-              "nix_file_content": "",
-              "repository": "@@oak++nix_kernels+nixpkgs//:nixpkgs",
-              "repositories": {},
-              "build_file_content": "exports_files([\"bzImage\"])",
-              "nixopts": [],
-              "quiet": false,
-              "fail_not_supported": true
-            }
-          },
-          "nix_linux_kernel": {
-            "repoRuleId": "@@rules_nixpkgs_core+//:nixpkgs.bzl%_nixpkgs_package",
-            "attributes": {
-              "unmangled_name": "nix_linux_kernel",
-              "attribute_path": "",
-              "nix_file": "@@oak+//oak_containers/kernel:kernel.nix",
-              "nix_file_deps": {
-                "@@oak+//oak_containers/kernel:kernel-common.nix": "//oak_containers/kernel:kernel-common.nix",
-                "@@oak+//oak_containers/kernel:kernel_version.txt": "//oak_containers/kernel:kernel_version.txt",
-                "@@oak+//oak_containers/kernel/configs/6.12.74:minimal.config": "//oak_containers/kernel/configs/6.12.74:minimal.config",
-                "@@oak+//oak_containers/kernel/patches:virtio-dma.patch": "//oak_containers/kernel/patches:virtio-dma.patch",
-                "@@oak+//oak_containers/kernel/patches:tdx-probe-roms.patch": "//oak_containers/kernel/patches:tdx-probe-roms.patch",
-                "@@oak+//oak_containers/kernel/patches:rtmr-enable.patch": "//oak_containers/kernel/patches:rtmr-enable.patch"
-              },
-              "nix_file_content": "",
-              "repository": "@@oak++nix_kernels+nixpkgs//:nixpkgs",
-              "repositories": {},
-              "build_file_content": "exports_files([\"bzImage\"])",
-              "nixopts": [],
-              "quiet": false,
-              "fail_not_supported": true
-            }
-          }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "oak+",
-            "rules_nixpkgs_core",
-            "rules_nixpkgs_core+"
-          ],
-          [
-            "rules_nixpkgs_core+",
-            "bazel_skylib",
-            "bazel_skylib+"
-          ]
-        ]
-      }
-    },
     "@@pybind11_bazel+//:internal_configure.bzl%internal_configure_extension": {
       "general": {
         "bzlTransitiveDigest": "tTVXx5awRrw3tdWVDq1eemm8zSoh5O0F8fjzYFe+Opo=",
@@ -2041,31 +1903,6 @@
         "recordedRepoMappingEntries": [
           [
             "pybind11_bazel+",
-            "bazel_tools",
-            "bazel_tools"
-          ]
-        ]
-      }
-    },
-    "@@rules_android+//bzlmod_extensions:apksig.bzl%apksig_extension": {
-      "general": {
-        "bzlTransitiveDigest": "oNxmR17oNBDtqdMtQ04f77G1dxpDmcW7KbgGb9I5vp0=",
-        "usagesDigest": "Q1K6gUNGvlIU1euKR0hYgZa7vTWqjzrtkDji9A5WftA=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-        "generatedRepoSpecs": {
-          "apksig": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
-            "attributes": {
-              "url": "https://android.googlesource.com/platform/tools/apksig/+archive/24e3075e68ebe17c0b529bb24bfda819db5e2f3b.tar.gz",
-              "build_file": "@@rules_android+//bzlmod_extensions:apksig.BUILD"
-            }
-          }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "rules_android+",
             "bazel_tools",
             "bazel_tools"
           ]
@@ -2669,40 +2506,6 @@
             "rules_kotlin+",
             "bazel_tools",
             "bazel_tools"
-          ]
-        ]
-      }
-    },
-    "@@rules_nixpkgs_core+//extensions:repository.bzl%nix_repo": {
-      "general": {
-        "bzlTransitiveDigest": "dTTtWNdwe7E4j77oKh1mHI1qtdxfaVSGSZa1oPf2QjU=",
-        "usagesDigest": "ZjI2xoiQBaRz3qc721Gc+tXJ9FrSWkJDOJeEXWOvz4Q=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-        "generatedRepoSpecs": {
-          "nixpkgs": {
-            "repoRuleId": "@@rules_nixpkgs_core+//:nixpkgs.bzl%_nixpkgs_http_repository",
-            "attributes": {
-              "unmangled_name": "nixpkgs",
-              "url": "https://github.com/NixOS/nixpkgs/archive/refs/tags/24.05.tar.gz",
-              "strip_prefix": "nixpkgs-24.05",
-              "integrity": "",
-              "sha256": "911314b81780f26fdaf87e17174210bdbd40c86bac1795212f257cdc236a1e78"
-            }
-          }
-        },
-        "moduleExtensionMetadata": {
-          "explicitRootModuleDirectDeps": [],
-          "explicitRootModuleDirectDevDeps": [],
-          "useAllRepos": "NO",
-          "reproducible": false
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "rules_nixpkgs_core+",
-            "bazel_skylib",
-            "bazel_skylib+"
           ]
         ]
       }

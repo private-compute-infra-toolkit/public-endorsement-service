@@ -1,0 +1,13 @@
+[Unit]
+Description=Configure and Start Metrics Exporter (CloudWatch Agent)
+After=network-online.target
+Wants=network-online.target
+Before=enclave.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/google/enclave/configure_metrics_exporter.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -46,6 +46,10 @@ sudo systemctl enable fluent-bit
 # Enable the configuration service (installed by RPM)
 sudo systemctl enable configure-fluent-bit.service
 
+sudo yum install amazon-cloudwatch-agent -y
+
+sudo systemctl enable metrics-exporter.service
+
 sudo systemctl enable vsockproxy
 
 sudo systemctl enable enclave

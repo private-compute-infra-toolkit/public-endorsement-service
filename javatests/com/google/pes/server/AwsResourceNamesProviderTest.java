@@ -37,7 +37,12 @@ public class AwsResourceNamesProviderTest {
     when(args.getTLedgerCertBucketPrefix()).thenReturn("test-tledger-cert-prefix");
 
     AwsInstanceMetadata metadata =
-        new AwsInstanceMetadata("us-west-2", "123456789012", "testenv", "testdomain");
+        AwsInstanceMetadata.builder()
+            .setRegion("us-west-2")
+            .setAccountId("123456789012")
+            .setEnvironment("testenv")
+            .setDomain("testdomain")
+            .build();
     AwsResourceNamesProvider provider = new AwsResourceNamesProvider(args, metadata);
 
     AwsResourceNames names = provider.getRecord();

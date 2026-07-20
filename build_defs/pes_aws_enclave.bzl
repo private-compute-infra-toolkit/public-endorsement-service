@@ -29,6 +29,7 @@ def pes_aws_eif_and_ami(
         jar_file = "/server_main_deploy.jar",
         jar_path = "//java/com/google/pes/server:server_main_deploy.jar",
         service_name = "pes",
+        user_rpms = [],
         **kwargs):
     """Generates a PES-specific AWS EIF and AMI with standard defaults.
 
@@ -45,6 +46,7 @@ def pes_aws_eif_and_ami(
         jar_file: Target file name inside the enclave. Defaults to "/server_main_deploy.jar".
         jar_path: Label of the target JAR binary. Defaults to "//java/com/google/pes/server:server_main_deploy.jar".
         service_name: The name of the systemd service. Defaults to "pes".
+        user_rpms: Additional RPMs to install. Defaults to [].
         **kwargs: Additional arguments to pass to the underlying aws_eif_and_ami.
     """
     default_additional_container_tars = [
@@ -55,6 +57,10 @@ def pes_aws_eif_and_ami(
         "-Dlogging.host=localhost",
         "-Dlogging.port=50052",
         "-Dflogger.backend_factory=com.google.common.flogger.backend.slf4j.Slf4jBackendFactory",
+    ]
+
+    default_user_rpms = [
+        "//build_defs/aws:pes_metrics_rpm",
     ]
 
     aws_eif_and_ami(
@@ -70,5 +76,6 @@ def pes_aws_eif_and_ami(
         service_name = service_name,
         subnet_id = subnet_id,
         uninstall_ssh_server = uninstall_ssh_server,
+        user_rpms = default_user_rpms + user_rpms,
         **kwargs
     )

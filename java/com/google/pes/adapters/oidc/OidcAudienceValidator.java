@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,10 @@
 package com.google.pes.adapters.oidc;
 
 import com.google.common.flogger.FluentLogger;
+import com.google.pes.annotations.TrustDomain;
 import com.google.pes.domain.CallerIdentity;
 import com.google.pes.domain.JwtAuth;
+import com.google.pes.server.AwsInstanceMetadata;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -29,17 +31,26 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** OIDC audience validation. */
 public final class OidcAudienceValidator {
   private static final FluentLogger logger = FluentLogger.forEnclosingClass();
-  private final String audienceHostname;
+  private static final Pattern AUDIENCE_PATTERN =
+      Pattern.compile("^https://([^/]+)(?:/v1/endorsements)?$");
+
+  private final String trustDomain;
+  private final AwsInstanceMetadata metadata;
   private final Locator<Key> keyLocator;
 
   @Inject
   public OidcAudienceValidator(
-      @AudienceHostname String audienceHostname, @JwtAuth Locator<Key> keyLocator) {
-    this.audienceHostname = audienceHostname;
+      @TrustDomain String trustDomain,
+      AwsInstanceMetadata metadata,
+      @JwtAuth Locator<Key> keyLocator) {
+    this.trustDomain = trustDomain;
+    this.metadata = metadata;
     this.keyLocator = keyLocator;
   }
 
@@ -48,17 +59,46 @@ public final class OidcAudienceValidator {
    * Returns caller identity if successful, throws exception if not
    */
   public CallerIdentity parseAndValidate(String token) throws JwtException {
-    String expectedAudience = String.format("https://%s/v1/endorsements", audienceHostname);
-
     CallerIdentity identity = parseBearerToken(token);
-
-    if (!identity.audiences().contains(expectedAudience)) {
-      logger.atSevere().log(
-          "OIDC audience binding mismatch. Expected an audience of: %s. Found audiences: %s",
-          expectedAudience, identity.audiences());
-      // TODO: We should throw exception here
-    }
+    validateAudience(identity.audiences());
     return identity;
+  }
+
+  void validateAudience(Set<String> audiences) {
+    for (String audience : audiences) {
+      Matcher matcher = AUDIENCE_PATTERN.matcher(audience);
+      if (matcher.matches()) {
+        String hostname = matcher.group(1);
+        if (isValidHostname(hostname)) {
+          return;
+        }
+      }
+    }
+
+    logger.atWarning().log(
+        "OIDC audience binding mismatch. Expected a valid audience matching format: "
+            + "https://<hostname> or https://<hostname>/v1/endorsements, where <hostname> is "
+            + "either a trust domain, global or regional hostname. Found audiences: %s",
+        audiences);
+    throw new AudienceValidationException("OIDC audience binding validation failed.");
+  }
+
+  private boolean isValidHostname(String hostname) {
+    if (hostname.equals(trustDomain)) {
+      return true;
+    }
+
+    String globalHostname = String.format("pes.%s.%s", metadata.environment(), metadata.domain());
+    if (hostname.equals(globalHostname)) {
+      return true;
+    }
+
+    String regionalHostname = String.format("%s.%s", metadata.region(), globalHostname);
+    if (hostname.equals(regionalHostname)) {
+      return true;
+    }
+
+    return false;
   }
 
   private CallerIdentity parseBearerToken(String token) throws JwtException {

@@ -23,6 +23,7 @@ java_library(
         "Statement.java",
         "TLogReceipt.java",
         "VerificationMaterial.java",
+        "VerifiedEndorsement.java",
     ],
     visibility = ["//visibility:public"],
     deps = [

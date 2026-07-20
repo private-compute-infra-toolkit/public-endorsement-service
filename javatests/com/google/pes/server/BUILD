@@ -29,6 +29,7 @@ java_test(
         "//java/com/google/pes/domain",
         "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
+        "//java/com/google/pes/server:aws_metadata",
         "//java/com/google/pes/server:pes_cmd_args",
         "//java/com/google/pes/server:server_main",
         "@com_google_protobuf//:protobuf_java",
@@ -38,6 +39,7 @@ java_test(
         "@maven//:com_google_inject_guice",
         "@maven//:com_google_protobuf_protobuf_java",
         "@maven//:com_google_truth_truth",
+        "@maven//:io_micrometer_micrometer_registry_prometheus",
         "@maven//:junit_junit",
         "@maven//:org_apache_httpcomponents_client5_httpclient5",
         "@maven//:org_mockito_mockito_core",
@@ -55,6 +57,7 @@ java_test(
     srcs = ["AwsResourceNamesProviderTest.java"],
     test_class = "com.google.pes.server.AwsResourceNamesProviderTest",
     deps = [
+        "//java/com/google/pes/server:aws_metadata",
         "//java/com/google/pes/server:pes_cmd_args",
         "//java/com/google/pes/server:server_main",
         "@maven//:junit_junit",
@@ -69,6 +72,8 @@ java_test(
     test_class = "com.google.pes.server.PesGrpcHandlerTest",
     deps = [
         "//java/com/google/pes/adapters",
+        "//java/com/google/pes/adapters/oidc",
+        "//java/com/google/pes/adapters/tlog",
         "//java/com/google/pes/domain",
         "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
@@ -86,12 +91,35 @@ java_test(
         "@maven//:com_google_inject_guice",
         "@maven//:com_google_protobuf_protobuf_java",
         "@maven//:com_google_truth_truth",
+        "@maven//:com_linecorp_armeria_armeria",
+        "@maven//:com_linecorp_armeria_armeria_grpc",
+        "@maven//:com_linecorp_armeria_armeria_prometheus1",
         "@maven//:io_jsonwebtoken_jjwt_api",
         "@maven//:io_jsonwebtoken_jjwt_impl",
         "@maven//:io_jsonwebtoken_jjwt_jackson",
+        "@maven//:io_micrometer_micrometer_registry_prometheus",
         "@maven//:junit_junit",
         "@maven//:org_mockito_mockito_core",
         "@pcit_api//google/pes/v1:endorsement_proto",
         "@pcit_api//google/pes/v1:public_endorsement_service_proto",
+    ],
+)
+
+java_test(
+    name = "CertificateValidityReporterTest",
+    size = "small",
+    srcs = ["CertificateValidityReporterTest.java"],
+    test_class = "com.google.pes.server.CertificateValidityReporterTest",
+    runtime_deps = [
+        "@maven//:com_google_flogger_flogger_system_backend",
+    ],
+    deps = [
+        "//java/com/google/pes/domain/metric",
+        "//java/com/google/pes/server:server_main",
+        "@maven//:com_google_flogger_flogger",
+        "@maven//:com_google_guava_guava",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+        "@maven//:org_mockito_mockito_core",
     ],
 )

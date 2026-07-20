@@ -16,6 +16,7 @@
 
 package com.google.pes.domain;
 
+import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.PublisherPolicy;
 import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.ports.PolicyProvider;
@@ -25,10 +26,12 @@ import java.util.Optional;
 
 public class PublisherVerifier {
   private final PolicyProvider policyProvider;
+  private final Metrics metrics;
 
   @Inject
-  PublisherVerifier(PolicyProvider policyProvider) {
+  PublisherVerifier(PolicyProvider policyProvider, Metrics metrics) {
     this.policyProvider = policyProvider;
+    this.metrics = metrics;
   }
 
   /**
@@ -76,5 +79,7 @@ public class PublisherVerifier {
       throw new IllegalArgumentException(
           "The provided verification material is not authorized for this client role.");
     }
+
+    metrics.approvePublisher(publisherId);
   }
 }

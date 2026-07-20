@@ -21,6 +21,11 @@ packer {
   }
 }
 
+variable "extra_tags" {
+  type    = map(string)
+  default = {}
+}
+
 locals {
   //AMI naming does not support some special characters
   timestamp = formatdate("YYYY-MM-DD'T'hh-mm-ssZ", timestamp())
@@ -66,6 +71,13 @@ source "amazon-ebs" "sample-ami" {
     http_put_response_hop_limit = 1
   }
   imds_support  = "v2.0" # enforces imdsv2 support on the resulting AMI
+
+  tags = merge(
+    {
+      Name = "{ami_name}"
+    },
+    var.extra_tags
+  )
 }
 
 build {

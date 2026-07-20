@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library", "java_plugin")
+
+java_plugin(
+    name = "auto_value_plugin",
+    processor_class = "com.google.auto.value.processor.AutoBuilderProcessor",
+    deps = ["@maven//:com_google_auto_value_auto_value"],
+)
 
 java_library(
     name = "pes_cmd_args",
@@ -32,16 +38,29 @@ genrule(
     cmd = "cp $< $@",
 )
 
+java_library(
+    name = "aws_metadata",
+    srcs = [
+        "AwsInstanceMetadata.java",
+    ],
+    plugins = [":auto_value_plugin"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@maven//:com_google_auto_value_auto_value_annotations",
+    ],
+)
+
 java_binary(
     name = "server_main",
     srcs = [
-        "AwsInstanceMetadata.java",
         "AwsResourceNames.java",
         "AwsResourceNamesProvider.java",
+        "CertificateValidityReporter.java",
         "ImdsClient.java",
         "JwtInterceptor.java",
         "PesGrpcHandler.java",
         "PesModule.java",
+        "PesServer.java",
         "ServerMain.java",
     ],
     main_class = "com.google.pes.server.ServerMain",
@@ -55,6 +74,7 @@ java_binary(
         "@maven//:net_logstash_logback_logstash_logback_encoder",
     ],
     deps = [
+        ":aws_metadata",
         ":pes_cmd_args",
         "//java/com/google/pes/adapters",
         "//java/com/google/pes/adapters/oidc",
@@ -64,6 +84,7 @@ java_binary(
         "//java/com/google/pes/adapters/tlog",
         "//java/com/google/pes/annotations",
         "//java/com/google/pes/domain",
+        "//java/com/google/pes/domain/metric",
         "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
         "//java/com/google/pes/proto:endorsement_java_proto",
@@ -76,18 +97,23 @@ java_binary(
         "@maven//:com_fasterxml_jackson_core_jackson_databind",
         "@maven//:com_google_code_gson_gson",
         "@maven//:com_google_flogger_flogger",
+        "@maven//:com_google_guava_guava",
         "@maven//:com_google_inject_guice",
         "@maven//:com_linecorp_armeria_armeria",
         "@maven//:com_linecorp_armeria_armeria_grpc",
+        "@maven//:com_linecorp_armeria_armeria_prometheus1",
         "@maven//:io_grpc_grpc_netty_shaded",
         "@maven//:io_grpc_grpc_services",
         "@maven//:io_jsonwebtoken_jjwt_api",
         "@maven//:io_jsonwebtoken_jjwt_impl",
         "@maven//:io_jsonwebtoken_jjwt_jackson",
+        "@maven//:io_micrometer_micrometer_core",
+        "@maven//:io_micrometer_micrometer_registry_prometheus",
         "@maven//:jakarta_inject_jakarta_inject_api",
         "@maven//:org_apache_httpcomponents_client5_httpclient5",
-        "@maven//:org_bouncycastle_bcpkix_jdk15to18",
-        "@maven//:org_bouncycastle_bcprov_jdk15to18",
+        "@maven//:org_apache_httpcomponents_core5_httpcore5",
+        "@maven//:org_bouncycastle_bcpkix_jdk18on",
+        "@maven//:org_bouncycastle_bcprov_jdk18on",
         "@maven//:software_amazon_awssdk_auth",
         "@maven//:software_amazon_awssdk_imds",
         "@maven//:software_amazon_awssdk_regions",

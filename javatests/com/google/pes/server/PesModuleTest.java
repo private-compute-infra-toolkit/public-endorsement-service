@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Key;
-import com.google.pes.adapters.oidc.AudienceHostname;
 import com.google.pes.adapters.oidc.OidcAudienceValidator;
 import com.google.pes.adapters.policy.S3PolicyProvider;
 import com.google.pes.adapters.signatures.SignatureVerifierImpl;
@@ -36,6 +35,7 @@ import com.google.pes.domain.ports.PolicyProvider;
 import com.google.pes.domain.ports.PublisherIdProvider;
 import com.google.pes.domain.ports.SignatureVerifier;
 import com.google.pes.domain.ports.TLog;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import java.util.Map;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.junit.Test;
@@ -66,8 +66,24 @@ public class PesModuleTest {
             "--cert-backup-bucket-prefix=" + TEST_CERT_BUCKET,
             "--key-backup-bucket-prefix=" + TEST_KEY_BUCKET);
     AwsInstanceMetadata metadata =
-        new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012", "testenv", "testdomain");
-    Injector injector = Guice.createInjector(new PesModule(args, metadata));
+        AwsInstanceMetadata.builder()
+            .setRegion(TEST_AWS_REGION)
+            .setAccountId("123456789012")
+            .setEnvironment("testenv")
+            .setDomain("testdomain")
+            .build();
+    com.google.inject.Module testModule =
+        com.google.inject.util.Modules.override(new PesModule(args, metadata))
+            .with(
+                new com.google.inject.AbstractModule() {
+                  @Override
+                  protected void configure() {
+                    bind(String.class)
+                        .annotatedWith(com.google.pes.annotations.TrustDomain.class)
+                        .toInstance("pes.pcit.goog");
+                  }
+                });
+    Injector injector = Guice.createInjector(testModule);
 
     assertThat(injector).isNotNull();
     assertThat(injector.getInstance(Key.get(String.class, TLedgerUrl.class)))
@@ -78,8 +94,6 @@ public class PesModuleTest {
     assertThat(injector.getInstance(PolicyProvider.class)).isInstanceOf(S3PolicyProvider.class);
     assertThat(injector.getInstance(SignatureVerifier.class))
         .isInstanceOf(SignatureVerifierImpl.class);
-    assertThat(injector.getInstance(Key.get(String.class, AudienceHostname.class)))
-        .isEqualTo("pes.pcit.goog");
     assertThat(injector.getInstance(OidcAudienceValidator.class))
         .isInstanceOf(OidcAudienceValidator.class);
 
@@ -102,7 +116,12 @@ public class PesModuleTest {
             "--mbs-kms-key-suffix=" + TEST_MBS_KEY,
             "--key-backup-bucket-prefix=" + TEST_KEY_BUCKET);
     AwsInstanceMetadata metadata =
-        new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012", "testenv", "testdomain");
+        AwsInstanceMetadata.builder()
+            .setRegion(TEST_AWS_REGION)
+            .setAccountId("123456789012")
+            .setEnvironment("testenv")
+            .setDomain("testdomain")
+            .build();
     Injector injector = Guice.createInjector(new PesModule(args, metadata));
     CloseableHttpClient client = injector.getInstance(CloseableHttpClient.class);
     assertThat(client).isNotNull();
@@ -121,7 +140,12 @@ public class PesModuleTest {
             "--cert-backup-bucket-prefix=" + TEST_CERT_BUCKET,
             "--key-backup-bucket-prefix=" + TEST_KEY_BUCKET);
     AwsInstanceMetadata metadata =
-        new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012", "testenv", "testdomain");
+        AwsInstanceMetadata.builder()
+            .setRegion(TEST_AWS_REGION)
+            .setAccountId("123456789012")
+            .setEnvironment("testenv")
+            .setDomain("testdomain")
+            .build();
     Injector injector = Guice.createInjector(new PesModule(args, metadata));
     ObjectMapper mapper = injector.getInstance(ObjectMapper.class);
     assertThat(mapper).isNotNull();
@@ -140,7 +164,12 @@ public class PesModuleTest {
             "--cert-backup-bucket-prefix=" + TEST_CERT_BUCKET,
             "--key-backup-bucket-prefix=" + TEST_KEY_BUCKET);
     AwsInstanceMetadata metadata =
-        new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012", "testenv", "testdomain");
+        AwsInstanceMetadata.builder()
+            .setRegion(TEST_AWS_REGION)
+            .setAccountId("123456789012")
+            .setEnvironment("testenv")
+            .setDomain("testdomain")
+            .build();
     Injector injector = Guice.createInjector(new PesModule(args, metadata));
     S3Client client = injector.getInstance(S3Client.class);
     assertThat(client).isNotNull();
@@ -161,12 +190,36 @@ public class PesModuleTest {
             "--cert-backup-bucket-prefix=" + TEST_CERT_BUCKET,
             "--key-backup-bucket-prefix=" + TEST_KEY_BUCKET);
     AwsInstanceMetadata metadata =
-        new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012", "testenv", "testdomain");
+        AwsInstanceMetadata.builder()
+            .setRegion(TEST_AWS_REGION)
+            .setAccountId("123456789012")
+            .setEnvironment("testenv")
+            .setDomain("testdomain")
+            .build();
     PesModule module = new PesModule(args, metadata);
     Injector injector = Guice.createInjector(module);
 
     assertThat(injector.getInstance(Key.get(String.class, TLedgerUrl.class))).isEqualTo(tLedgerUrl);
     assertThat(injector.getInstance(Key.get(String.class, PolicyBucket.class)))
         .isEqualTo(configBucket + "-123456789012-" + TEST_AWS_REGION);
+  }
+
+  @Test
+  public void providePrometheusMeterRegistry_returnsInstance() {
+    PesArgs args = new PesArgs();
+    JCommander.newBuilder()
+        .addObject(args)
+        .build()
+        .parse(
+            "--tledger-url=" + TEST_TLEDGER_URL,
+            "--configuration-bucket-prefix=" + TEST_CONFIG_BUCKET,
+            "--mbs-kms-key-suffix=" + TEST_MBS_KEY,
+            "--cert-backup-bucket-prefix=" + TEST_CERT_BUCKET,
+            "--key-backup-bucket-prefix=" + TEST_KEY_BUCKET);
+    AwsInstanceMetadata metadata =
+        new AwsInstanceMetadata(TEST_AWS_REGION, "123456789012", "testenv", "testdomain");
+    Injector injector = Guice.createInjector(new PesModule(args, metadata));
+    PrometheusMeterRegistry registry = injector.getInstance(PrometheusMeterRegistry.class);
+    assertThat(registry).isNotNull();
   }
 }

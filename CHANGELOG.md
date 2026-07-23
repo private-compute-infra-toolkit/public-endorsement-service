@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.6.0 (2026-07-23)
+
+
+### Features
+
+* Update root certificate validity to expire on 2027-03-02
+
 ## 0.5.0 (2026-07-20)
 
 

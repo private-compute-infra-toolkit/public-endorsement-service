@@ -185,12 +185,11 @@ public class PesModule extends AbstractModule {
             MbsCertificateFactory.createSelfSignedCertificatesFactory(
                 new MbsCertificateFactory.CertSignatureSpec("RSA", 4096, "SHA256withRSA"),
                 new X500Name("C=US, O=Google LLC, CN=PES"),
-                // 90 days from 2027-02-01
-                // The notAfter of TCA and Tledger is set to 2027-02-01: deadline for initial
-                // PCIT root certs.
-                // Because PES root cert's notAfter must be later than endorsement' notAfter,
-                // add 90 days offset to PES root cert.
-                Duration.between(Instant.now(), Instant.parse("2027-05-02T00:00:00Z")),
+                // The notAfter of TCA and Tledger is set to 2027-02-02 (14:00 CET): deadline for
+                // initial PCIT root certs.
+                // Because PES root cert's notAfter must be later than endorsement's notAfter,
+                // set PES root cert expiration to 2027-03-02 (14:00 CET).
+                Duration.between(Instant.now(), Instant.parse("2027-03-02T13:00:00Z")),
                 san,
                 KeyUsage.digitalSignature),
             metrics);

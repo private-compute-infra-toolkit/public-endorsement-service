@@ -83,7 +83,12 @@ public class TLedgerTest {
 
   @Test
   public void post_sendsCorrectlyFormattedEntry() throws Exception {
-    String dummyJsonResponse = "{\"name\": \"entries/HiMom\"}";
+    Entry responseEntry =
+        Entry.newBuilder()
+            .setName("entries/HiMom")
+            .setRawEntry(getExpectedRawEntry(testEndorsement))
+            .build();
+    String dummyJsonResponse = JsonFormat.printer().print(responseEntry);
     when(mockHttpClient.execute(any(HttpPost.class), any(BasicHttpClientResponseHandler.class)))
         .thenReturn(dummyJsonResponse);
     when(mockCertificateFetcher.fetch()).thenReturn(ByteString.copyFromUtf8("cert"));
@@ -115,7 +120,7 @@ public class TLedgerTest {
     String receiptId = "entries/12345";
     ByteString certBytes = ByteString.copyFromUtf8("cert");
     ByteString signatureBytes = ByteString.copyFromUtf8("sig");
-    ByteString rawEntryBytes = ByteString.copyFromUtf8("raw");
+    ByteString rawEntryBytes = getExpectedRawEntry(testEndorsement);
     Entry responseEntry =
         Entry.newBuilder()
             .setName(receiptId)
@@ -178,7 +183,12 @@ public class TLedgerTest {
 
   @Test
   public void post_invalidSignature_throwsTLogException() throws IOException {
-    String dummyJsonResponse = "{\"name\": \"entries/HiMom\"}";
+    Entry responseEntry =
+        Entry.newBuilder()
+            .setName("entries/HiMom")
+            .setRawEntry(getExpectedRawEntry(testEndorsement))
+            .build();
+    String dummyJsonResponse = JsonFormat.printer().print(responseEntry);
     when(mockHttpClient.execute(any(HttpPost.class), any(BasicHttpClientResponseHandler.class)))
         .thenReturn(dummyJsonResponse);
     when(mockCertificateFetcher.fetch()).thenReturn(ByteString.copyFromUtf8("cert"));
@@ -191,6 +201,28 @@ public class TLedgerTest {
 
     assertThat(exception).hasMessageThat().contains("Failed to verify TLedger signature");
     assertThat(exception).hasCauseThat().isInstanceOf(InvalidSignatureException.class);
+  }
+
+  @Test
+  public void post_mismatchedRawEntry_throwsTLogException() throws IOException {
+    ByteString mismatchedRawEntryBytes = ByteString.copyFromUtf8("mismatched-raw-entry");
+    Entry responseEntry =
+        Entry.newBuilder()
+            .setName("entries/12345")
+            .setSignature(ByteString.copyFromUtf8("sig"))
+            .setRawEntry(mismatchedRawEntryBytes)
+            .build();
+    String jsonResponse = JsonFormat.printer().print(responseEntry);
+
+    when(mockHttpClient.execute(any(HttpPost.class), any(BasicHttpClientResponseHandler.class)))
+        .thenReturn(jsonResponse);
+
+    TLogException exception =
+        assertThrows(TLogException.class, () -> tLedger.post(testEndorsement));
+
+    assertThat(exception)
+        .hasMessageThat()
+        .contains("TLedger response raw entry does not match sent raw entry");
   }
 
   @Test
@@ -224,6 +256,14 @@ public class TLedgerTest {
     boolean healthy = tLedger.isHealthy();
 
     assertThat(healthy).isFalse();
+  }
+
+  private ByteString getExpectedRawEntry(Endorsement endorsement) {
+    return PublicEndorsement.newBuilder(EndorsementMapper.toProto(endorsement))
+        .clearEndorsementSignatures()
+        .clearTlogReceipt()
+        .build()
+        .toByteString();
   }
 
   private Endorsement createTestEndorsement() {

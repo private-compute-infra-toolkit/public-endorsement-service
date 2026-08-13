@@ -22,16 +22,21 @@ import "proto/attestation/endorsement.proto";
 import "proto/attestation/evidence.proto";
 
 option java_multiple_files = true;
-option java_outer_classname = "TrustedCertificateAuthorityProto";
+option java_outer_classname = "TransparentCertificateAuthorityProto";
 option java_package = "com.google.tca.v1";
 
-service TrustedCertificateAuthority {
+service TransparentCertificateAuthority {
   rpc IssueCertificate(IssueCertificateRequest) returns (IssueCertificateResponse) {
     option (google.api.http) = {
       post: "/v1/certificates:issue"
       body: "*"
     };
   }
+}
+
+// Deprecated: Kept for zero-downtime transition.
+service TrustedCertificateAuthority {
+  rpc IssueCertificate(IssueCertificateRequest) returns (IssueCertificateResponse) {}
 }
 
 message IssueCertificateRequest {

@@ -14,14 +14,14 @@
 
 syntax = "proto3";
 
-package google.tca.policy.v1;
+package google.tca.policy.v2;
 
 import "google/protobuf/duration.proto";
 import "proto/attestation/reference_value.proto";
 
 option java_multiple_files = true;
 option java_outer_classname = "TcaPolicyProto";
-option java_package = "com.google.tca.policy.v1";
+option java_package = "com.google.tca.policy.v2";
 
 message Policies {
   //  key = `publisher_id/workload_id`
@@ -33,8 +33,8 @@ message Policies {
 message Policy {
   string publisher_id = 1;
   string workload_id = 2;
-  string trust_domain = 3;
-  string operator = 4;
+  string operator_domain = 3;
+  string operator_role = 4;
   repeated ReferenceValues reference_values = 5;
   X509CertificateAttributes certificate_attributes = 6;
 }
@@ -45,9 +45,15 @@ message ReferenceValues {
   }
 }
 
+// key = OID e.g.: "2.5.4.3" -> "Root CA"
+message X500NameAttributes {
+  map<string, string> attributes = 1;
+}
+
 message X509CertificateAttributes {
   google.protobuf.Duration max_certificate_validity = 1;
   X509Extensions x509_extensions = 2;
+  X500NameAttributes certificate_subject = 3;
 }
 
 message X509Extensions {
@@ -73,5 +79,22 @@ message LeafCertificate {}
 
 // Name Constraints (OID: 2.5.29.30)
 message NameConstraints {
-  repeated string permitted_subtree = 1;
+  repeated NameConstraint permitted_subtrees = 1;
+}
+
+message NameConstraint {
+  oneof name_constraint {
+    UriNameConstraint uri = 1;
+    DnsNameConstraint dns = 2;
+  }
+}
+
+message UriNameConstraint {
+  // The value will be appended with TCA's own domain, i.e. ".tca.pcit.goog".
+  string subdomain_in_tca_domain = 1;
+}
+
+message DnsNameConstraint {
+  // The value will be appended with TCA's own domain, i.e. ".tca.pcit.goog".
+  string subdomain_in_tca_domain = 1;
 }

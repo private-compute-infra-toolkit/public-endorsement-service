@@ -17,8 +17,8 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 package(default_visibility = ["//visibility:public"])
 
 proto_library(
-    name = "trusted_certificate_authority_proto",
-    srcs = ["trusted_certificate_authority.proto"],
+    name = "transparent_certificate_authority_proto",
+    srcs = ["transparent_certificate_authority.proto"],
     deps = [
         "@googleapis//google/api:annotations_proto",
         "@googleapis//google/api:field_behavior_proto",

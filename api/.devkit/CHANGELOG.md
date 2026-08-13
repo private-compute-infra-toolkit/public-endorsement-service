@@ -2,6 +2,87 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 3.11.0 (2026-08-06)
+
+
+### Dependencies
+
+* **deps:** Update apt packages (diff hash: c8575306)
+* **deps:** Update apt packages (diff hash: d9219547)
+* **deps:** Update apt packages (diff hash: daa447e3)
+* **deps:** Update apt packages (diff hash: f013e614)
+* **deps:** Upgrade gemini-cli to 0.49.0
+* **deps:** Upgrade gemini-cli to 0.51.0
+* **deps:** Upgrade gemini-cli to 0.52.0
+* **deps:** Upgrade gemini-cli to 0.53.1
+
+
+### Bug Fixes
+
+* **coverage:** check cwd bazel-out for report
+
+## 3.10.0 (2026-07-01)
+
+
+### Dependencies
+
+* **deps:** Update apt packages (diff hash: f57195f4)
+* **deps:** Upgrade gemini-cli to 0.47.0
+
+
+### Features
+
+* add comments and --update to checksum script
+* support gcloud client certificate authentication
+
+## 3.9.0 (2026-06-16)
+
+
+### Dependencies
+
+* **deps:** Update apt packages (diff hash: 5203f152)
+* **deps:** Update apt packages (diff hash: cfb04cda)
+* **deps:** Upgrade gemini-cli to 0.44.1
+* **deps:** Upgrade gemini-cli to 0.46.0
+
+## 3.8.0 (2026-05-28)
+
+
+### Dependencies
+
+* **deps:** Update apt packages (diff hash: 5dfd1378)
+* **deps:** Upgrade gemini-cli to 0.44.0
+
+## 3.7.0 (2026-05-22)
+
+
+### Dependencies
+
+* **deps:** update VSCode to 1.121.0
+
+## 3.6.0 (2026-05-14)
+
+
+### Dependencies
+
+* **deps:** Update apt packages (diff hash: 1ebdf552)
+* **deps:** Update apt packages (diff hash: 99f936d6)
+* **deps:** Update apt packages (diff hash: af08c6b7)
+* **deps:** Upgrade gemini-cli to 0.40.1
+* **deps:** Upgrade gemini-cli to 0.41.1
+* **deps:** Upgrade gemini-cli to 0.42.0
+
+
+### Features
+
+* support per-file coverage thresholds
+* update coverage report to display target thresholds
+
+
+### Bug Fixes
+
+* rollback to VSCode 1.118.1
+
 ## 3.5.0 (2026-04-27)
 
 

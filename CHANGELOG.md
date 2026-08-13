@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.7.0 (2026-08-13)
+
+
+### Dependencies
+
+* **deps:** Update api to release-0.6.0
+* **deps:** Update container-tools to release-0.8.0
+* **deps:** Update DevKit to release-3.11.0
+
+
+### Bug Fixes
+
+* Verify raw entry bytes in TLedger response match the request
+
 ## 0.6.0 (2026-07-23)
 
 

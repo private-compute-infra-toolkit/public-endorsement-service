@@ -118,6 +118,9 @@ public class TLedger implements TLog {
       throw new TLogException("Failed to parse TLedger response", e);
     }
     resultEntry = entryBuilder.build();
+    if (!rawEntry.equals(resultEntry.getRawEntry())) {
+      throw new TLogException("TLedger response raw entry does not match sent raw entry");
+    }
     verifyTLedgerSignature(resultEntry);
     return new TLogReceipt(resultEntry.getName());
   }

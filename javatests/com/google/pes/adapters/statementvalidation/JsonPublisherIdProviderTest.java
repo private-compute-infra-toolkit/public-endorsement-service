@@ -104,8 +104,8 @@ public final class JsonPublisherIdProviderTest {
   public void getValidPublisherId_wrongStatementType_throws() throws Exception {
     ByteString statementBytes =
         ByteString.copyFromUtf8(
-            "{ \"_type\": \"wrongType\", \"subject\": [{\"name\":\"n\", \"digest\":{\"sha\" :"
-                + " \"not-sha\"}}], "
+            "{ \"_type\": \"wrongType\", \"subject\": [{\"name\":\"n\", \"digest\":{\"sha256\" :"
+                + " \"8c938394c5962194d1449ee17b4db5fdf5a78729b38ebacf26de9bed4027e351\"}}], "
                 + VALID_PREDICATE_JSON
                 + " }");
     IllegalArgumentException e =

@@ -40,3 +40,14 @@ java_test(
         "@maven//:junit_junit",
     ],
 )
+
+java_test(
+    name = "ResourceDescriptorTest",
+    srcs = ["ResourceDescriptorTest.java"],
+    deps = [
+        "//java/com/google/pes/adapters/statementvalidation",
+        "@maven//:com_fasterxml_jackson_core_jackson_databind",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+    ],
+)

@@ -274,11 +274,35 @@ public class EndorsementVerifierTest {
                 TEST_ENDORSEMENT.statementSignature()));
   }
 
+  @Test
+  public void parseAndVerify_subjectMissingDigest_throwsIllegalArgumentException() {
+    Statement statement = createStatementWithoutSubjectDigest();
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE));
+    verifyNoInteractions(mockPublisherVerifier);
+  }
+
+  private static Statement createStatementWithoutSubjectDigest() {
+    String json =
+        "{\n"
+            + "  \"_type\": \"https://in-toto.io/Statement/v1\",\n"
+            + "  \"subject\": [{\"name\": \"sub\"}],\n"
+            + "  \"predicateType\": \"https://project-oak.github.io/oak/tr/endorsement/v1\",\n"
+            + "  \"predicate\": {\"issuedOn\": \"2026-06-01T00:00:00Z\", \"validity\":"
+            + " {\"notBefore\": \"2026-06-01T00:00:00Z\", \"notAfter\":"
+            + " \"2026-09-01T00:00:00Z\"}}\n"
+            + "}";
+    return new Statement(Statement.Format.JSON_INTOTO, ByteString.copyFromUtf8(json));
+  }
+
   private static Statement createStatementWithValidity(String validityJson) {
     String json =
         "{\n"
             + "  \"_type\": \"https://in-toto.io/Statement/v1\",\n"
-            + "  \"subject\": [{\"name\": \"sub\", \"digest\": {\"sha256\": \"1234\"}}],\n"
+            + "  \"subject\": [{\"name\": \"sub\", \"digest\": {\"sha256\":"
+            + " \"8c938394c5962194d1449ee17b4db5fdf5a78729b38ebacf26de9bed4027e351\"}}],\n"
             + "  \"predicateType\": \"https://project-oak.github.io/oak/tr/endorsement/v1\",\n"
             + "  \"predicate\": "
             + (validityJson != null

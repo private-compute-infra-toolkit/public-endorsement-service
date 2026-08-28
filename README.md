@@ -34,3 +34,12 @@ can perform signing operations.
 - **In-toto Support**: Natively
   supports [in-toto v1 statements](https://github.com/in-toto/attestation/tree/main/spec/v1) for describing software
   supply chain metadata.
+
+## Statement & Subject Restrictions
+
+PES enforces the following requirements on in-toto statements:
+
+- **Statement Format**: The statement `_type` must be `https://in-toto.io/Statement/v1` and `predicateType` must be `https://project-oak.github.io/oak/tr/endorsement/v1`.
+- **Subject Resource Descriptors**: Exactly one subject descriptor is required in the `subject` array.
+- **Subject Digest Validation**: The subject descriptor must contain a non-empty `digest` map with at least one valid `sha256` entry consisting of exactly 64 lowercase hexadecimal characters (`^[0-9a-f]{64}$`). Other entries are ignored.
+- **Claims**: The statement predicate must contain exactly one valid `publisher` claim matching an onboarded publisher ID.

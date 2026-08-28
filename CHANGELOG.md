@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.9.0 (2026-08-28)
+
+
+### Features
+
+* Enforce sha256 subject digest validation for in-toto statements
+
 ## 0.8.0 (2026-08-18)
 
 

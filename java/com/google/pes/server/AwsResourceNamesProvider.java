@@ -58,12 +58,19 @@ public class AwsResourceNamesProvider {
             args.getTLedgerCertBucketPrefix(),
             awsInstanceMetadata.accountId(),
             awsInstanceMetadata.region());
+    String tsaConfigBucketName =
+        String.format(
+            "%s-%s-%s",
+            args.getTsaConfigBucketPrefix(),
+            awsInstanceMetadata.accountId(),
+            awsInstanceMetadata.region());
 
     return new AwsResourceNames(
         certBackupBucketName,
         keyBackupBucketName,
         configBucketName,
         kmsKeyArn,
-        tledgerCertBucketName);
+        tledgerCertBucketName,
+        tsaConfigBucketName);
   }
 }

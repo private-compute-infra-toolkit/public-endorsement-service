@@ -29,7 +29,7 @@ public final class EndorsementMapper {
     return new Endorsement(
         proto.getName(),
         StatementMapper.toDomain(proto.getStatement()),
-        SignatureMapper.toDomain(proto.getStatementSignature()),
+        StatementSignatureMapper.toDomain(proto.getStatementSignature()),
         proto.getEndorsementSignaturesList().stream()
             .map(SignatureMapper::toDomain)
             .collect(Collectors.toList()),
@@ -40,7 +40,7 @@ public final class EndorsementMapper {
     return PublicEndorsement.newBuilder()
         .setName(domain.name())
         .setStatement(StatementMapper.toProto(domain.statement()))
-        .setStatementSignature(SignatureMapper.toProto(domain.statementSignature()))
+        .setStatementSignature(StatementSignatureMapper.toProto(domain.statementSignature()))
         .addAllEndorsementSignatures(
             domain.endorsementSignatures().stream()
                 .map(SignatureMapper::toProto)

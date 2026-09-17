@@ -18,8 +18,8 @@ package com.google.pes.domain;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.Statement;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.TLogReceipt;
 import com.google.pes.domain.model.VerificationMaterial;
 import com.google.protobuf.ByteString;
@@ -36,8 +36,8 @@ public class PreAuthenticationEncodingTest {
 
     ByteString verificationMaterial = ByteString.copyFromUtf8("verification_material");
     ByteString signatureBytes = ByteString.copyFromUtf8("signature_bytes");
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             signatureBytes,
             new VerificationMaterial(verificationMaterial, VerificationMaterial.Format.X509_DER));
 
@@ -54,8 +54,8 @@ public class PreAuthenticationEncodingTest {
   @Test
   public void calculate_utf8LogId_countsBytesCorrectly() {
     Statement statement = new Statement(Statement.Format.JSON_INTOTO, ByteString.EMPTY);
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             ByteString.EMPTY,
             new VerificationMaterial(ByteString.EMPTY, VerificationMaterial.Format.X509_DER));
 
@@ -71,8 +71,8 @@ public class PreAuthenticationEncodingTest {
   @Test
   public void calculate_emptyFields_handlesZeroLengths() {
     Statement statement = new Statement(Statement.Format.JSON_INTOTO, ByteString.EMPTY);
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             ByteString.EMPTY,
             new VerificationMaterial(ByteString.EMPTY, VerificationMaterial.Format.X509_DER));
     TLogReceipt receipt = new TLogReceipt("");

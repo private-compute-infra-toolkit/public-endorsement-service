@@ -26,8 +26,8 @@ import static org.mockito.Mockito.when;
 
 import com.google.pes.adapters.EndorsementMapper;
 import com.google.pes.domain.model.Endorsement;
-import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.Statement;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.TLogReceipt;
 import com.google.pes.domain.model.VerificationMaterial;
 import com.google.pes.domain.ports.InvalidSignatureException;
@@ -140,7 +140,7 @@ public class TLedgerTest {
     verify(mockSignatureVerifier)
         .verify(
             eq(
-                new Signature(
+                new StatementSignature(
                     signatureBytes,
                     new VerificationMaterial(certBytes, VerificationMaterial.Format.X509_DER))),
             eq(rawEntryBytes));
@@ -270,8 +270,8 @@ public class TLedgerTest {
     Statement testStatement =
         new Statement(Statement.Format.JSON_INTOTO, ByteString.copyFromUtf8("statement"));
 
-    Signature testSignature =
-        new Signature(
+    StatementSignature testSignature =
+        new StatementSignature(
             ByteString.copyFromUtf8("test-signature-bytes"),
             new VerificationMaterial(
                 ByteString.copyFromUtf8("test-key-material"),

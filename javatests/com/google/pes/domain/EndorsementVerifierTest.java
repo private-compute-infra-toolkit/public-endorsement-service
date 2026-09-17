@@ -26,8 +26,8 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.pes.domain.model.Endorsement;
-import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.Statement;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.VerificationMaterial;
 import com.google.pes.domain.model.VerifiedEndorsement;
 import com.google.pes.domain.ports.PublisherIdProvider;
@@ -88,8 +88,8 @@ public class EndorsementVerifierTest {
           ByteString.copyFromUtf8("test-material"), VerificationMaterial.Format.ECDSA_P256_SHA256);
   private static final ByteString TEST_SIGNATURE_BYTES = ByteString.copyFromUtf8("test-signature");
 
-  private static final Signature TEST_SIGNATURE =
-      new Signature(TEST_SIGNATURE_BYTES, TEST_MATERIAL);
+  private static final StatementSignature TEST_SIGNATURE =
+      new StatementSignature(TEST_SIGNATURE_BYTES, TEST_MATERIAL);
 
   private static final Endorsement TEST_ENDORSEMENT =
       new Endorsement("name", TEST_STATEMENT, TEST_SIGNATURE, List.of(), null);

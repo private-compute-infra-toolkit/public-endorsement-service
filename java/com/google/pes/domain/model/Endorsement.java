@@ -22,6 +22,6 @@ import java.util.List;
 public record Endorsement(
     String name,
     Statement statement,
-    Signature statementSignature,
+    StatementSignature statementSignature,
     List<Signature> endorsementSignatures,
     TLogReceipt tLogReceipt) {}

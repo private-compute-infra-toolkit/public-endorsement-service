@@ -21,6 +21,7 @@ java_library(
         "PublisherPolicyMapper.java",
         "SignatureMapper.java",
         "StatementMapper.java",
+        "StatementSignatureMapper.java",
         "SystemMetrics.java",
         "TLogReceiptMapper.java",
         "VerificationMaterialMapper.java",

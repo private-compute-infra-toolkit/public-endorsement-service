@@ -29,6 +29,7 @@ import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.Endorsement;
 import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.Statement;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.TLogReceipt;
 import com.google.pes.domain.model.VerificationMaterial;
 import com.google.pes.domain.model.VerifiedEndorsement;
@@ -40,6 +41,7 @@ import com.google.pes.domain.ports.TLog;
 import com.google.pes.domain.ports.TLogException;
 import com.google.protobuf.ByteString;
 import java.util.List;
+import java.util.Optional;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -58,8 +60,8 @@ public class PublicEndorsementServiceTest {
   private PublicEndorsementService publicEndorsementService;
   Statement STATEMENT =
       new Statement(Statement.Format.JSON_INTOTO, ByteString.copyFromUtf8("statement"));
-  Signature STATEMENT_SIGNATURE =
-      new Signature(
+  StatementSignature STATEMENT_SIGNATURE =
+      new StatementSignature(
           ByteString.copyFromUtf8("sig"),
           new VerificationMaterial(
               ByteString.copyFromUtf8("material"), VerificationMaterial.Format.ECDSA_P256_SHA256));
@@ -92,7 +94,8 @@ public class PublicEndorsementServiceTest {
             ByteString.copyFromUtf8("pes-sig"),
             new VerificationMaterial(
                 ByteString.copyFromUtf8("pes-material"),
-                VerificationMaterial.Format.ECDSA_P256_SHA256));
+                VerificationMaterial.Format.ECDSA_P256_SHA256),
+            Optional.empty());
     when(mockSignatureGenerator.generate(
             eq(PreAuthenticationEncoding.calculate(STATEMENT, STATEMENT_SIGNATURE, tLogReceipt))))
         .thenReturn(endorsementSignature);

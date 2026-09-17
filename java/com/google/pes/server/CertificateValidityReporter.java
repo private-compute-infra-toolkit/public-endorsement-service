@@ -18,6 +18,7 @@ package com.google.pes.server;
 
 import com.google.common.flogger.FluentLogger;
 import com.google.common.util.concurrent.AbstractScheduledService;
+import com.google.mbs.qualifier.MbsRoot;
 import com.google.pes.domain.metric.Metrics;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -34,7 +35,7 @@ public class CertificateValidityReporter extends AbstractScheduledService {
   private final Metrics metrics;
 
   @Inject
-  public CertificateValidityReporter(X509Certificate certificate, Metrics metrics) {
+  public CertificateValidityReporter(@MbsRoot X509Certificate certificate, Metrics metrics) {
     this.certificate = certificate;
     this.metrics = metrics;
   }

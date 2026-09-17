@@ -16,7 +16,7 @@
 
 package com.google.pes.adapters.signatures;
 
-import com.google.pes.domain.model.Signature;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.ports.InvalidSignatureException;
 import com.google.pes.domain.ports.SignatureVerifier;
 import com.google.protobuf.ByteString;
@@ -31,7 +31,7 @@ public class SignatureVerifierImpl implements SignatureVerifier {
    * PublicKey.
    */
   @Override
-  public void verify(Signature signature, ByteString signedData) {
+  public void verify(StatementSignature signature, ByteString signedData) {
     PublicKey publicKey = PublicKeyParser.parse(signature.verificationMaterial());
     try {
       if (!verifySignature(signedData, signature.signature(), publicKey)) {

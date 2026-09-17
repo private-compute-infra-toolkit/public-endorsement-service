@@ -83,6 +83,15 @@ message Signature {
 
   // The material required to verify the authenticity of the signature.
   google.pes.v1.VerificationMaterial verification_material = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // RFC 3161 timestamp token from the timestamp authority certifying the signature creation time.
+  TimeStampToken time_stamp_token = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Represents an RFC 3161 TimeStampToken.
+message TimeStampToken {
+  // Contains der-encodded TimeStampToken as defined in https://www.rfc-editor.org/info/rfc3161/#section-2.4.2
+  bytes der_bytes = 1 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Represents a receipt from the TLog.

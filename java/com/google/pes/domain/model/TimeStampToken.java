@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-package com.google.tlog;
+package com.google.pes.domain.model;
 
-/** Data class to hold the transparency log entry details as a JSON string. */
-public class TlogEntry {
-  private final String entryJson; // Raw JSON from the TLog
+import com.google.protobuf.ByteString;
+import java.util.Objects;
 
-  public TlogEntry(String entryJson) {
-    this.entryJson = entryJson;
-  }
+/** Represents an RFC 3161 TimeStampToken carrying DER-encoded bytes. */
+public record TimeStampToken(ByteString derBytes) {
 
-  public String getEntryJson() {
-    return entryJson;
+  public TimeStampToken {
+    Objects.requireNonNull(derBytes, "derBytes cannot be null");
   }
 }

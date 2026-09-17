@@ -28,6 +28,10 @@ import com.google.pes.adapters.policy.S3PolicyProvider;
 import com.google.pes.adapters.signatures.SignatureVerifierImpl;
 import com.google.pes.adapters.statementvalidation.JsonPublisherIdProvider;
 import com.google.pes.adapters.tlog.TLedger;
+import com.google.pes.adapters.tsa.RandomTsaUrlSelector;
+import com.google.pes.adapters.tsa.S3TsaConfigProvider;
+import com.google.pes.adapters.tsa.TsaConfigBucketName;
+import com.google.pes.adapters.tsa.TsaUrlSelector;
 import com.google.pes.annotations.PolicyBucket;
 import com.google.pes.annotations.TLedgerUrl;
 import com.google.pes.domain.model.Statement;
@@ -35,6 +39,7 @@ import com.google.pes.domain.ports.PolicyProvider;
 import com.google.pes.domain.ports.PublisherIdProvider;
 import com.google.pes.domain.ports.SignatureVerifier;
 import com.google.pes.domain.ports.TLog;
+import com.google.pes.domain.ports.TsaConfigProvider;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import java.util.Map;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -75,6 +80,7 @@ public class PesModuleTest {
     com.google.inject.Module testModule =
         com.google.inject.util.Modules.override(new PesModule(args, metadata))
             .with(
+                new com.google.mbs.DummyMbsModule(),
                 new com.google.inject.AbstractModule() {
                   @Override
                   protected void configure() {
@@ -90,12 +96,24 @@ public class PesModuleTest {
         .isEqualTo(TEST_TLEDGER_URL);
     assertThat(injector.getInstance(Key.get(String.class, PolicyBucket.class)))
         .isEqualTo("my-fake-bucket-123456789012-us-east-1");
+    assertThat(injector.getInstance(Key.get(String.class, TsaConfigBucketName.class)))
+        .isEqualTo("pes-tsa-config-123456789012-us-east-1");
     assertThat(injector.getInstance(TLog.class)).isInstanceOf(TLedger.class);
     assertThat(injector.getInstance(PolicyProvider.class)).isInstanceOf(S3PolicyProvider.class);
     assertThat(injector.getInstance(SignatureVerifier.class))
         .isInstanceOf(SignatureVerifierImpl.class);
+    assertThat(injector.getInstance(TsaConfigProvider.class))
+        .isInstanceOf(S3TsaConfigProvider.class);
+    assertThat(injector.getInstance(TsaConfigProvider.class))
+        .isSameInstanceAs(injector.getInstance(TsaConfigProvider.class));
+    assertThat(injector.getInstance(TsaUrlSelector.class)).isInstanceOf(RandomTsaUrlSelector.class);
+    assertThat(injector.getInstance(TsaUrlSelector.class))
+        .isSameInstanceAs(injector.getInstance(TsaUrlSelector.class));
     assertThat(injector.getInstance(OidcAudienceValidator.class))
         .isInstanceOf(OidcAudienceValidator.class);
+    assertThat(injector.getInstance(com.google.pes.domain.PublicEndorsementService.class))
+        .isNotNull();
+    assertThat(injector.getInstance(PesGrpcHandler.class)).isNotNull();
 
     Map<Statement.Format, PublisherIdProvider> validatorMap = injector.getInstance(new Key<>() {});
     assertThat(validatorMap).containsKey(Statement.Format.JSON_INTOTO);

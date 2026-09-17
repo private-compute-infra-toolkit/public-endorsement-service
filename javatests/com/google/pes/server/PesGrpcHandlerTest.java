@@ -26,8 +26,8 @@ import static org.mockito.Mockito.when;
 import com.google.pes.adapters.tlog.TLedger;
 import com.google.pes.domain.PublicEndorsementService;
 import com.google.pes.domain.model.Endorsement;
-import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.Statement;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.TLogReceipt;
 import com.google.pes.domain.ports.InvalidSignatureException;
 import com.google.pes.domain.ports.InvalidVerificationMaterialException;
@@ -126,7 +126,7 @@ public class PesGrpcHandlerTest {
         new Endorsement(
             "endorsements/123",
             new Statement(Statement.Format.JSON_INTOTO, ByteString.copyFromUtf8("test statement")),
-            new Signature(
+            new StatementSignature(
                 ByteString.copyFromUtf8("sig"),
                 new com.google.pes.domain.model.VerificationMaterial(
                     ByteString.copyFromUtf8("verification"),

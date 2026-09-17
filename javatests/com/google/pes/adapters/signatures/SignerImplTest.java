@@ -22,8 +22,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
 import com.google.mbs.MbsCertificateFactory;
-import com.google.mbs.MeasurementBoundCertificate;
-import com.google.mbs.MeasurementBoundCertificateProvider;
 import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.VerificationMaterial;
 import com.google.pes.domain.ports.PesSignatureException;
@@ -59,8 +57,6 @@ public class SignerImplTest {
 
   @Mock private PrivateKey mockPrivateKey;
   @Mock private X509Certificate mockCertificate;
-  @Mock private MeasurementBoundCertificateProvider certificateProvider;
-  @Mock private MeasurementBoundCertificate measurementBoundCertificate;
 
   private static final ByteString TEST_DATA = ByteString.copyFromUtf8("Some data to sign");
 
@@ -72,8 +68,6 @@ public class SignerImplTest {
   @Before
   public void setUp() {
     Security.addProvider(new BouncyCastleProvider());
-    when(certificateProvider.loadOrGenerateCertificate()).thenReturn(measurementBoundCertificate);
-    signer = new SignatureGeneratorImpl(certificateProvider);
   }
 
   @Test
@@ -87,8 +81,7 @@ public class SignerImplTest {
             KeyUsage.digitalSignature);
     MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey = factory.generate();
     X509Certificate cert = certAndKey.certificate();
-    when(measurementBoundCertificate.getCertificate()).thenReturn(cert);
-    when(measurementBoundCertificate.getPrivateKey()).thenReturn(certAndKey.privateKey());
+    signer = new SignatureGeneratorImpl(cert, certAndKey.privateKey());
 
     Signature result = signer.generate(TEST_DATA);
 
@@ -97,6 +90,7 @@ public class SignerImplTest {
     assertThat(result.verificationMaterial().format())
         .isEqualTo(VerificationMaterial.Format.X509_DER);
     assertThat(result.signature()).isNotEmpty();
+    assertThat(result.timeStampToken()).isEmpty();
     assertTrue(
         verifySignature(TEST_DATA, result.signature(), cert.getPublicKey(), "SHA256withRSA"));
   }
@@ -112,8 +106,7 @@ public class SignerImplTest {
             KeyUsage.digitalSignature);
     MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey = factory.generate();
     X509Certificate cert = certAndKey.certificate();
-    when(measurementBoundCertificate.getCertificate()).thenReturn(cert);
-    when(measurementBoundCertificate.getPrivateKey()).thenReturn(certAndKey.privateKey());
+    signer = new SignatureGeneratorImpl(cert, certAndKey.privateKey());
 
     Signature result = signer.generate(TEST_DATA);
 
@@ -122,6 +115,7 @@ public class SignerImplTest {
     assertThat(result.verificationMaterial().format())
         .isEqualTo(VerificationMaterial.Format.X509_DER);
     assertThat(result.signature()).isNotEmpty();
+    assertThat(result.timeStampToken()).isEmpty();
     assertTrue(
         verifySignature(TEST_DATA, result.signature(), cert.getPublicKey(), "SHA256withECDSA"));
   }
@@ -138,10 +132,9 @@ public class SignerImplTest {
             KeyUsage.digitalSignature);
     MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey = factory.generate();
     X509Certificate cert = certAndKey.certificate();
-    when(measurementBoundCertificate.getCertificate()).thenReturn(cert);
-    when(measurementBoundCertificate.getPrivateKey()).thenReturn(mockPrivateKey);
 
     when(mockPrivateKey.getAlgorithm()).thenReturn("UNSUPPORTED_ALGO");
+    signer = new SignatureGeneratorImpl(cert, mockPrivateKey);
 
     PesSignatureException exception =
         assertThrows(PesSignatureException.class, () -> signer.generate(TEST_DATA));
@@ -154,8 +147,7 @@ public class SignerImplTest {
     KeyPair keyPair = generateKeyPair("RSA", 2048);
     when(mockCertificate.getEncoded())
         .thenThrow(new CertificateEncodingException("Test encoding error"));
-    when(measurementBoundCertificate.getCertificate()).thenReturn(mockCertificate);
-    when(measurementBoundCertificate.getPrivateKey()).thenReturn(keyPair.getPrivate());
+    signer = new SignatureGeneratorImpl(mockCertificate, keyPair.getPrivate());
 
     assertThrows(PesSignatureException.class, () -> signer.generate(TEST_DATA));
   }

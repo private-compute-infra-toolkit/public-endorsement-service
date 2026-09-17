@@ -17,6 +17,8 @@
 package com.google.pes.adapters;
 
 import com.google.pes.domain.model.Signature;
+import com.google.pes.domain.model.TimeStampToken;
+import java.util.Optional;
 
 /** Maps between domain {@link Signature} and proto {@link com.google.pes.v1.Signature}. */
 public final class SignatureMapper {
@@ -24,14 +26,29 @@ public final class SignatureMapper {
   private SignatureMapper() {}
 
   public static Signature toDomain(com.google.pes.v1.Signature proto) {
+    Optional<TimeStampToken> timeStampToken =
+        proto.hasTimeStampToken()
+            ? Optional.of(new TimeStampToken(proto.getTimeStampToken().getDerBytes()))
+            : Optional.empty();
+
     return new Signature(
-        proto.getSignature(), VerificationMaterialMapper.toDomain(proto.getVerificationMaterial()));
+        proto.getSignature(),
+        VerificationMaterialMapper.toDomain(proto.getVerificationMaterial()),
+        timeStampToken);
   }
 
   public static com.google.pes.v1.Signature toProto(Signature domain) {
-    return com.google.pes.v1.Signature.newBuilder()
-        .setSignature(domain.signature())
-        .setVerificationMaterial(VerificationMaterialMapper.toProto(domain.verificationMaterial()))
-        .build();
+    com.google.pes.v1.Signature.Builder builder =
+        com.google.pes.v1.Signature.newBuilder()
+            .setSignature(domain.signature())
+            .setVerificationMaterial(
+                VerificationMaterialMapper.toProto(domain.verificationMaterial()));
+
+    domain
+        .timeStampToken()
+        .map(token -> com.google.pes.v1.TimeStampToken.newBuilder().setDerBytes(token.derBytes()))
+        .ifPresent(builder::setTimeStampToken);
+
+    return builder.build();
   }
 }

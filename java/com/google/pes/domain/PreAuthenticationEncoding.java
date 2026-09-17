@@ -16,8 +16,8 @@
 
 package com.google.pes.domain;
 
-import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.Statement;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.TLogReceipt;
 import com.google.protobuf.ByteString;
 import java.util.ArrayList;
@@ -51,7 +51,7 @@ public class PreAuthenticationEncoding {
    * @return A {@link ByteString} containing the fully constructed PAE.
    */
   public static ByteString calculate(
-      Statement statement, Signature signature, TLogReceipt tlogReceipt) {
+      Statement statement, StatementSignature signature, TLogReceipt tlogReceipt) {
     List<ByteString> parts = new ArrayList<>();
 
     parts.add(PES_PREFIX);

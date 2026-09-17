@@ -35,6 +35,26 @@ java_test(
 )
 
 java_test(
+    name = "StatementSignatureMapperTest",
+    size = "small",
+    srcs = ["StatementSignatureMapperTest.java"],
+    test_class = "com.google.pes.adapters.StatementSignatureMapperTest",
+    deps = [
+        "//java/com/google/pes/adapters",
+        "//java/com/google/pes/domain/model",
+        "//java/com/google/pes/proto:endorsement_java_proto",
+        "//java/com/google/pes/proto:public_endorsement_service_java_proto",
+        "//java/com/google/pes/proto:verification_material_java_proto",
+        "@com_google_protobuf//:protobuf_java",
+        "@com_google_protobuf//java/util",
+        "@maven//:com_google_guava_guava",
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+    ],
+)
+
+java_test(
     name = "StatementMapperTest",
     size = "small",
     srcs = ["StatementMapperTest.java"],

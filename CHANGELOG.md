@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.10.0 (2026-09-17)
+
+
+### Dependencies
+
+* **deps:** Update api to release-0.7.0
+
+
+### Features
+
+* Add default TSA trust anchors for RFC 3161 validation
+* Add RFC 3161 TSA client port interface
+* Add TSA configuration provider and S3 implementation
+* Add TSA URL selector strategy and random implementation
+
 ## 0.9.0 (2026-08-28)
 
 

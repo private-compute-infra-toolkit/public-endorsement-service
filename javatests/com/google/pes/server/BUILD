@@ -25,10 +25,12 @@ java_test(
         "//java/com/google/pes/adapters/signatures",
         "//java/com/google/pes/adapters/statementvalidation",
         "//java/com/google/pes/adapters/tlog",
+        "//java/com/google/pes/adapters/tsa",
         "//java/com/google/pes/annotations",
         "//java/com/google/pes/domain",
         "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
+        "//java/com/google/pes/proto:public_endorsement_service_java_grpc",
         "//java/com/google/pes/server:aws_metadata",
         "//java/com/google/pes/server:pes_cmd_args",
         "//java/com/google/pes/server:server_main",
@@ -46,8 +48,7 @@ java_test(
         "@maven//:software_amazon_awssdk_s3",
         "@pcit_mbs//java/com/google/mbs:certmanagement",
         "@pcit_mbs//java/com/google/mbs:dummy_cert_provider",
-        "@pcit_mbs//java/com/google/mbs/attestationcollection",
-        "@pcit_mbs//java/com/google/mbs/attestationcollection/aws",
+        "@pcit_mbs//java/com/google/mbs:module",
     ],
 )
 

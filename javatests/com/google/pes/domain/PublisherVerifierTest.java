@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 
 import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.PublisherPolicy;
-import com.google.pes.domain.model.Signature;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.VerificationMaterial;
 import com.google.pes.domain.ports.PolicyProvider;
 import com.google.protobuf.ByteString;
@@ -62,8 +62,8 @@ public class PublisherVerifierTest {
           ByteString.copyFromUtf8("other-material"), VerificationMaterial.Format.X509_DER);
   private static final ByteString TEST_SIGNATURE_BYTES = ByteString.copyFromUtf8("test-signature");
 
-  private static final Signature TEST_SIGNATURE =
-      new Signature(TEST_SIGNATURE_BYTES, TEST_MATERIAL);
+  private static final StatementSignature TEST_SIGNATURE =
+      new StatementSignature(TEST_SIGNATURE_BYTES, TEST_MATERIAL);
 
   private static final PublisherPolicy TEST_CONFIG =
       new PublisherPolicy(
@@ -150,7 +150,8 @@ public class PublisherVerifierTest {
   public void verify_verificationMaterialNotAuthorized_throwsIllegalArgumentException() {
     when(mockPolicyProvider.get(TEST_PUBLISHER_ID)).thenReturn(Optional.of(TEST_CONFIG));
 
-    Signature signatureWithOtherMaterial = new Signature(TEST_SIGNATURE_BYTES, OTHER_MATERIAL);
+    StatementSignature signatureWithOtherMaterial =
+        new StatementSignature(TEST_SIGNATURE_BYTES, OTHER_MATERIAL);
 
     assertThrows(
         IllegalArgumentException.class,

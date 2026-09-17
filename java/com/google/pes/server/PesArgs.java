@@ -57,6 +57,11 @@ public class PesArgs {
       description = "Prefix for the S3 bucket where client tledger public cert is stored")
   private String tledegrCertBucketPrefix = "tldgr-root-cert-backup";
 
+  @Parameter(
+      names = "--tsa-config-bucket-prefix",
+      description = "Prefix for the S3 bucket where TSA configuration is stored")
+  private String tsaConfigBucketPrefix = "pes-tsa-config";
+
   public boolean isHelp() {
     return help;
   }
@@ -83,5 +88,9 @@ public class PesArgs {
 
   public String getTLedgerCertBucketPrefix() {
     return tledegrCertBucketPrefix;
+  }
+
+  public String getTsaConfigBucketPrefix() {
+    return tsaConfigBucketPrefix;
   }
 }

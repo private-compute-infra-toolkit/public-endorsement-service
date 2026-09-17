@@ -22,4 +22,5 @@ public record AwsResourceNames(
     String keyBackupBucketName,
     String configBucketName,
     String kmsKeyArn,
-    String tledgerCertBucketName) {}
+    String tledgerCertBucketName,
+    String tsaConfigBucketName) {}

@@ -16,7 +16,7 @@
 
 package com.google.pes.domain.ports;
 
-import com.google.pes.domain.model.Signature;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.protobuf.ByteString;
 
 public interface SignatureVerifier {
@@ -25,5 +25,5 @@ public interface SignatureVerifier {
    *
    * @throws InvalidSignatureException if the signature is invalid or verification fails.
    */
-  void verify(Signature signature, ByteString signedData);
+  void verify(StatementSignature signature, ByteString signedData);
 }

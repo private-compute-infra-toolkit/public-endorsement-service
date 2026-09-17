@@ -23,14 +23,13 @@ import com.google.gson.Gson;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.multibindings.MapBinder;
-import com.google.kmsclient.KmsClientInterface;
-import com.google.kmsclient.aws.AwsKmsClientModule;
-import com.google.mbs.KeyBackupBucketPropertiesFactory;
-import com.google.mbs.KmsMeasurementBoundCertificateProvider;
 import com.google.mbs.MbsCertificateFactory;
-import com.google.mbs.MeasurementBoundCertificateProvider;
-import com.google.mbs.attestationcollection.AttestationCollector;
-import com.google.mbs.attestationcollection.aws.AwsAttestationModule;
+import com.google.mbs.MbsModule;
+import com.google.mbs.qualifier.AttestationUserData;
+import com.google.mbs.qualifier.KmsKeyArn;
+import com.google.mbs.qualifier.MbsRoot;
+import com.google.mbs.qualifier.PrivateBackupBucket;
+import com.google.mbs.qualifier.PublicBackupBucket;
 import com.google.pes.adapters.SystemMetrics;
 import com.google.pes.adapters.oidc.OidcDiscoveryFetcher;
 import com.google.pes.adapters.oidc.OidcJwksKeyFetcher;
@@ -42,6 +41,10 @@ import com.google.pes.adapters.statementvalidation.JsonPublisherIdProvider;
 import com.google.pes.adapters.tlog.TLedger;
 import com.google.pes.adapters.tlog.TLedgerCertBucketName;
 import com.google.pes.adapters.tlog.TLedgerCertName;
+import com.google.pes.adapters.tsa.RandomTsaUrlSelector;
+import com.google.pes.adapters.tsa.S3TsaConfigProvider;
+import com.google.pes.adapters.tsa.TsaConfigBucketName;
+import com.google.pes.adapters.tsa.TsaUrlSelector;
 import com.google.pes.annotations.PolicyBucket;
 import com.google.pes.annotations.TLedgerUrl;
 import com.google.pes.annotations.TrustDomain;
@@ -54,8 +57,7 @@ import com.google.pes.domain.ports.PublisherIdProvider;
 import com.google.pes.domain.ports.SignatureGenerator;
 import com.google.pes.domain.ports.SignatureVerifier;
 import com.google.pes.domain.ports.TLog;
-import com.google.tlog.TlogEntry;
-import com.google.tlog.TransparencyLogClient;
+import com.google.pes.domain.ports.TsaConfigProvider;
 import io.jsonwebtoken.Locator;
 import io.micrometer.core.instrument.config.MeterFilter;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
@@ -64,7 +66,6 @@ import jakarta.inject.Singleton;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
-import java.security.PrivateKey;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -113,6 +114,9 @@ public class PesModule extends AbstractModule {
     bind(String.class)
         .annotatedWith(TLedgerCertName.class)
         .toInstance("public/0/root_certificate.pem");
+    bind(String.class)
+        .annotatedWith(TsaConfigBucketName.class)
+        .toInstance(awsResourceNames.tsaConfigBucketName());
     MapBinder<Statement.Format, PublisherIdProvider> validatorMapBinder =
         MapBinder.newMapBinder(binder(), Statement.Format.class, PublisherIdProvider.class);
     validatorMapBinder.addBinding(Statement.Format.JSON_INTOTO).to(JsonPublisherIdProvider.class);
@@ -124,41 +128,32 @@ public class PesModule extends AbstractModule {
     bind(PolicyProvider.class).to(S3PolicyProvider.class);
     bind(SignatureGenerator.class).to(SignatureGeneratorImpl.class);
     bind(SignatureVerifier.class).to(SignatureVerifierImpl.class);
+    bind(TsaConfigProvider.class).to(S3TsaConfigProvider.class);
+    bind(TsaUrlSelector.class).to(RandomTsaUrlSelector.class);
     bind(Metrics.class).to(SystemMetrics.class);
     bind(com.google.mbs.Metrics.class).to(SystemMetrics.class);
 
-    install(new AwsKmsClientModule(awsInstanceMetadata.region()));
-    install(new AwsAttestationModule());
+    install(new MbsModule(awsInstanceMetadata.region()));
+    bind(String.class).annotatedWith(KmsKeyArn.class).toInstance(awsResourceNames.kmsKeyArn());
+    bind(String.class)
+        .annotatedWith(PublicBackupBucket.class)
+        .toInstance(awsResourceNames.certBackupBucketName());
+    bind(String.class)
+        .annotatedWith(PrivateBackupBucket.class)
+        .toInstance(awsResourceNames.keyBackupBucketName());
   }
 
   @Provides
   @Singleton
-  public TransparencyLogClient provideTransparencyLogClient() {
-    // TODO: Provided custom Tlog implementation that posts to the Tledger.
-    return new TransparencyLogClient() {
-      @Override
-      public TlogEntry recordCertificate(X509Certificate c, PrivateKey k) {
-        return new TlogEntry("{\"status\":\"dummy\"}");
-      }
-
-      @Override
-      public Optional<TlogEntry> getTlogEntryByCertificate(X509Certificate c) {
-        return Optional.of(new TlogEntry("{\"status\":\"dummy\"}"));
-      }
-    };
-  }
-
-  @Provides
-  @Singleton
-  public MeasurementBoundCertificateProvider provideMbs(
-      S3Client s3Client,
-      KmsClientInterface kmsClient,
-      TransparencyLogClient transparencyLogClient,
-      AttestationCollector attestationCollector,
-      com.google.mbs.Metrics metrics) {
-
+  @AttestationUserData
+  byte[] provideUserData() {
     String resourceNamesJson = new Gson().toJson(awsResourceNames);
-    byte[] userData = resourceNamesJson.getBytes(StandardCharsets.UTF_8);
+    return resourceNamesJson.getBytes(StandardCharsets.UTF_8);
+  }
+
+  @Provides
+  @Singleton
+  MbsCertificateFactory provideMbsCertificateFactory() {
     String env = awsInstanceMetadata.environment();
     String domain = awsInstanceMetadata.domain();
     String operatorRole = awsInstanceMetadata.accountId();
@@ -171,43 +166,22 @@ public class PesModule extends AbstractModule {
     Optional<GeneralNames> san = Optional.of(new GeneralNames(uriSan));
     logger.atInfo().log("Setting root certificate Subject Alternative Name (SAN): %s", spiffeId);
 
-    MeasurementBoundCertificateProvider provider =
-        new KmsMeasurementBoundCertificateProvider(
-            kmsClient,
-            s3Client,
-            new KeyBackupBucketPropertiesFactory(
-                    awsResourceNames.certBackupBucketName(), awsResourceNames.keyBackupBucketName())
-                .create(),
-            awsResourceNames.kmsKeyArn(),
-            userData,
-            transparencyLogClient,
-            attestationCollector,
-            MbsCertificateFactory.createSelfSignedCertificatesFactory(
-                new MbsCertificateFactory.CertSignatureSpec("RSA", 4096, "SHA256withRSA"),
-                new X500Name("C=US, O=Google LLC, CN=PES"),
-                // The notAfter of TCA and Tledger is set to 2027-02-02 (14:00 CET): deadline for
-                // initial PCIT root certs.
-                // Because PES root cert's notAfter must be later than endorsement's notAfter,
-                // set PES root cert expiration to 2027-03-02 (14:00 CET).
-                Duration.between(Instant.now(), Instant.parse("2027-03-02T13:00:00Z")),
-                san,
-                KeyUsage.digitalSignature),
-            metrics);
-
-    provider.loadOrGenerateCertificate();
-    return provider;
-  }
-
-  @Provides
-  @Singleton
-  X509Certificate provideRootCertificate(MeasurementBoundCertificateProvider mbsProvider) {
-    return mbsProvider.loadOrGenerateCertificate().getCertificate();
+    return MbsCertificateFactory.createSelfSignedCertificatesFactory(
+        new MbsCertificateFactory.CertSignatureSpec("RSA", 4096, "SHA256withRSA"),
+        new X500Name("C=US, O=Google LLC, CN=PES"),
+        // The notAfter of TCA and Tledger is set to 2027-02-02 (14:00 CET): deadline for
+        // initial PCIT root certs.
+        // Because PES root cert's notAfter must be later than endorsement's notAfter,
+        // set PES root cert expiration to 2027-03-02 (14:00 CET).
+        Duration.between(Instant.now(), Instant.parse("2027-03-02T13:00:00Z")),
+        san,
+        KeyUsage.digitalSignature);
   }
 
   @Provides
   @Singleton
   @TrustDomain
-  String provideTrustDomain(X509Certificate rootCertificate)
+  String provideTrustDomain(@MbsRoot X509Certificate rootCertificate)
       throws CertificateParsingException, java.net.URISyntaxException {
     return TrustDomainExtractor.extract(rootCertificate);
   }

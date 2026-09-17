@@ -35,6 +35,7 @@ public class AwsResourceNamesProviderTest {
     when(args.getConfigurationBucketPrefix()).thenReturn("test-config-bucket-prefix");
     when(args.getMbsKmsKeySuffix()).thenReturn("test-kms-key-suffix");
     when(args.getTLedgerCertBucketPrefix()).thenReturn("test-tledger-cert-prefix");
+    when(args.getTsaConfigBucketPrefix()).thenReturn("test-tsa-config-prefix");
 
     AwsInstanceMetadata metadata =
         AwsInstanceMetadata.builder()
@@ -52,5 +53,6 @@ public class AwsResourceNamesProviderTest {
     assertEquals("test-config-bucket-prefix-123456789012-us-west-2", names.configBucketName());
     assertEquals("arn:aws:kms:us-west-2:123456789012:test-kms-key-suffix", names.kmsKeyArn());
     assertEquals("test-tledger-cert-prefix-123456789012-us-west-2", names.tledgerCertBucketName());
+    assertEquals("test-tsa-config-prefix-123456789012-us-west-2", names.tsaConfigBucketName());
   }
 }

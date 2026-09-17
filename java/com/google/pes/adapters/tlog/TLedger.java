@@ -20,7 +20,7 @@ import com.google.common.flogger.FluentLogger;
 import com.google.pes.adapters.EndorsementMapper;
 import com.google.pes.annotations.TLedgerUrl;
 import com.google.pes.domain.model.Endorsement;
-import com.google.pes.domain.model.Signature;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.TLogReceipt;
 import com.google.pes.domain.model.VerificationMaterial;
 import com.google.pes.domain.ports.InvalidSignatureException;
@@ -146,7 +146,7 @@ public class TLedger implements TLog {
     ByteString certificateBytes = certificatFetcher.fetch();
     try {
       signatureVerifier.verify(
-          new Signature(
+          new StatementSignature(
               entry.getSignature(),
               new VerificationMaterial(certificateBytes, VerificationMaterial.Format.X509_DER)),
           entry.getRawEntry());

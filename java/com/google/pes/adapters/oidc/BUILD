@@ -54,6 +54,5 @@ java_library(
         "@maven//:io_jsonwebtoken_jjwt_jackson",
         "@maven//:jakarta_inject_jakarta_inject_api",
         "@maven//:org_apache_httpcomponents_client5_httpclient5",
-        "@pcit_mbs//java/com/google/tlog",
     ],
 )

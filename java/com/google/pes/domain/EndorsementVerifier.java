@@ -17,10 +17,11 @@
 package com.google.pes.domain;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.mbs.qualifier.MbsRoot;
 import com.google.pes.adapters.statementvalidation.InTotoStatement;
 import com.google.pes.adapters.statementvalidation.OakPredicate;
-import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.Statement;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.VerifiedEndorsement;
 import com.google.pes.domain.ports.PublisherIdProvider;
 import jakarta.inject.Inject;
@@ -47,7 +48,7 @@ public class EndorsementVerifier {
   EndorsementVerifier(
       Map<Statement.Format, Provider<PublisherIdProvider>> publisherIdProviders,
       PublisherVerifier publisherVerifier,
-      X509Certificate rootCertificate,
+      @MbsRoot X509Certificate rootCertificate,
       ObjectMapper objectMapper) {
     this.publisherIdProviders = publisherIdProviders;
     this.publisherVerifier = publisherVerifier;
@@ -67,7 +68,7 @@ public class EndorsementVerifier {
    * @throws IllegalArgumentException if statement verification or policy verification fails.
    */
   public VerifiedEndorsement parseAndVerify(
-      Statement statement, CallerIdentity identity, Signature signature) {
+      Statement statement, CallerIdentity identity, StatementSignature signature) {
     if (statement.format() == Statement.Format.FORMAT_UNSPECIFIED) {
       throw new IllegalArgumentException("The statement format has to be specified");
     }
@@ -120,7 +121,7 @@ public class EndorsementVerifier {
   }
 
   private String validatePublisherAndGetPublisherId(
-      Statement statement, CallerIdentity identity, Signature signature) {
+      Statement statement, CallerIdentity identity, StatementSignature signature) {
     Provider<PublisherIdProvider> provider = publisherIdProviders.get(statement.format());
     if (provider == null || provider.get() == null) {
       throw new IllegalArgumentException(

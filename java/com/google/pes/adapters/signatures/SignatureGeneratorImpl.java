@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.google.pes.adapters.signatures;
 
-import com.google.mbs.MeasurementBoundCertificate;
-import com.google.mbs.MeasurementBoundCertificateProvider;
+import static com.google.common.base.Preconditions.checkNotNull;
+
+import com.google.mbs.qualifier.MbsRoot;
 import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.VerificationMaterial;
 import com.google.pes.domain.ports.PesSignatureException;
@@ -28,27 +28,30 @@ import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.util.Optional;
 
 public class SignatureGeneratorImpl implements SignatureGenerator {
-  private final MeasurementBoundCertificateProvider certificateProvider;
+  private final X509Certificate certificate;
+  private final PrivateKey privateKey;
 
   @Inject
-  SignatureGeneratorImpl(MeasurementBoundCertificateProvider certificateProvider) {
-    this.certificateProvider = certificateProvider;
+  SignatureGeneratorImpl(@MbsRoot X509Certificate certificate, @MbsRoot PrivateKey privateKey) {
+    this.certificate = checkNotNull(certificate, "Certificate cannot be null.");
+    this.privateKey = checkNotNull(privateKey, "PrivateKey cannot be null.");
   }
 
   @Override
   public Signature generate(ByteString data) {
-    MeasurementBoundCertificate mbc = certificateProvider.loadOrGenerateCertificate();
-    byte[] certificateDer = getCertificateBytes(mbc.getCertificate());
+    byte[] certificateDer = getCertificateBytes(certificate);
 
-    String algorithm = getSigningAlgorithm(mbc.getPrivateKey().getAlgorithm());
-    byte[] signatureBytes = sign(data, mbc.getPrivateKey(), algorithm);
+    String algorithm = getSigningAlgorithm(privateKey.getAlgorithm());
+    byte[] signatureBytes = sign(data, privateKey, algorithm);
 
     return new Signature(
         ByteString.copyFrom(signatureBytes),
         new VerificationMaterial(
-            ByteString.copyFrom(certificateDer), VerificationMaterial.Format.X509_DER));
+            ByteString.copyFrom(certificateDer), VerificationMaterial.Format.X509_DER),
+        Optional.empty());
   }
 
   private byte[] getCertificateBytes(X509Certificate certificate) {

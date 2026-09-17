@@ -18,7 +18,7 @@ package com.google.pes.domain;
 
 import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.PublisherPolicy;
-import com.google.pes.domain.model.Signature;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.ports.PolicyProvider;
 import jakarta.inject.Inject;
 import java.util.Objects;
@@ -42,7 +42,7 @@ public class PublisherVerifier {
    * @param signature The signature object containing verification material.
    * @throws IllegalArgumentException if the policy is missing or values do not match.
    */
-  public void verify(String publisherId, CallerIdentity identity, Signature signature) {
+  public void verify(String publisherId, CallerIdentity identity, StatementSignature signature) {
     String escapedPublisherId = CallerIdentity.escape(publisherId);
     Optional<PublisherPolicy> policyOpt = policyProvider.get(escapedPublisherId);
 

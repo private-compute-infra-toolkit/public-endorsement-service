@@ -22,12 +22,14 @@ import com.google.common.collect.ImmutableList;
 import com.google.pes.domain.model.Endorsement;
 import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.Statement;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.TLogReceipt;
 import com.google.pes.v1.PublicEndorsement;
 import com.google.pes.v1.Statement.Format;
 import com.google.pes.v1.VerificationMaterial;
 import com.google.pes.v1.X509Der;
 import com.google.protobuf.ByteString;
+import java.util.Optional;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -62,11 +64,18 @@ public class EndorsementMapperTest {
   private static final Statement DOMAIN_STATEMENT =
       new Statement(Statement.Format.JSON_INTOTO, STATEMENT_BYTES);
 
-  private static final Signature DOMAIN_SIGNATURE =
-      new Signature(
+  private static final StatementSignature DOMAIN_STATEMENT_SIGNATURE =
+      new StatementSignature(
           SIG_BYTES,
           new com.google.pes.domain.model.VerificationMaterial(
               CERT_BYTES, com.google.pes.domain.model.VerificationMaterial.Format.X509_DER));
+
+  private static final Signature DOMAIN_ENDORSEMENT_SIGNATURE =
+      new Signature(
+          SIG_BYTES,
+          new com.google.pes.domain.model.VerificationMaterial(
+              CERT_BYTES, com.google.pes.domain.model.VerificationMaterial.Format.X509_DER),
+          Optional.empty());
 
   private static final TLogReceipt DOMAIN_TLOG_RECEIPT = new TLogReceipt(TLOG_ENTRY_ID);
 
@@ -85,9 +94,9 @@ public class EndorsementMapperTest {
 
     assertThat(domainEndorsement.name()).isEqualTo(ENDORSEMENT_NAME);
     assertThat(domainEndorsement.statement()).isEqualTo(DOMAIN_STATEMENT);
-    assertThat(domainEndorsement.statementSignature()).isEqualTo(DOMAIN_SIGNATURE);
+    assertThat(domainEndorsement.statementSignature()).isEqualTo(DOMAIN_STATEMENT_SIGNATURE);
     assertThat(domainEndorsement.endorsementSignatures())
-        .containsExactly(DOMAIN_SIGNATURE, DOMAIN_SIGNATURE)
+        .containsExactly(DOMAIN_ENDORSEMENT_SIGNATURE, DOMAIN_ENDORSEMENT_SIGNATURE)
         .inOrder();
     assertThat(domainEndorsement.tLogReceipt()).isEqualTo(DOMAIN_TLOG_RECEIPT);
   }
@@ -98,8 +107,8 @@ public class EndorsementMapperTest {
         new Endorsement(
             ENDORSEMENT_NAME,
             DOMAIN_STATEMENT,
-            DOMAIN_SIGNATURE,
-            ImmutableList.of(DOMAIN_SIGNATURE, DOMAIN_SIGNATURE),
+            DOMAIN_STATEMENT_SIGNATURE,
+            ImmutableList.of(DOMAIN_ENDORSEMENT_SIGNATURE, DOMAIN_ENDORSEMENT_SIGNATURE),
             DOMAIN_TLOG_RECEIPT);
 
     PublicEndorsement protoEndorsement = EndorsementMapper.toProto(domainEndorsement);

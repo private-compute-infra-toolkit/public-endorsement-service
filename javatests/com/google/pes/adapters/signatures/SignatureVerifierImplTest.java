@@ -19,9 +19,9 @@ package com.google.pes.adapters.signatures;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 
-import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.Statement;
 import com.google.pes.domain.model.Statement.Format;
+import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.VerificationMaterial;
 import com.google.pes.domain.ports.InvalidSignatureException;
 import com.google.pes.domain.ports.InvalidVerificationMaterialException;
@@ -68,8 +68,8 @@ public class SignatureVerifierImplTest {
     byte[] certBytes = createSelfSignedCertificate(keyPair, SHA_WITH_RSA);
     ByteString signatureBytes = signData(TEST_DATA, keyPair.getPrivate(), SHA_WITH_RSA);
 
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             signatureBytes,
             new VerificationMaterial(
                 ByteString.copyFrom(certBytes), VerificationMaterial.Format.X509_DER));
@@ -83,8 +83,8 @@ public class SignatureVerifierImplTest {
     byte[] keyBytes = keyPair.getPublic().getEncoded();
     ByteString signatureBytes = signData(TEST_DATA, keyPair.getPrivate(), SHA_WITH_ECDSA);
 
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             signatureBytes,
             new VerificationMaterial(
                 ByteString.copyFrom(keyBytes), VerificationMaterial.Format.ECDSA_P256_SHA256));
@@ -97,8 +97,8 @@ public class SignatureVerifierImplTest {
     KeyPair keyPair = generateEcKeyPair();
     byte[] certBytes = createSelfSignedCertificate(keyPair, SHA_WITH_ECDSA);
     ByteString signatureBytes = signData(TEST_DATA, keyPair.getPrivate(), SHA_WITH_ECDSA);
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             signatureBytes,
             new VerificationMaterial(
                 ByteString.copyFrom(certBytes), VerificationMaterial.Format.X509_DER));
@@ -108,8 +108,8 @@ public class SignatureVerifierImplTest {
 
   @Test
   public void verify_invalidCertificateEncoding_throwsInvalidMaterialException() {
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             ByteString.EMPTY,
             new VerificationMaterial(
                 ByteString.copyFromUtf8("This is not a valid DER certificate"),
@@ -122,8 +122,8 @@ public class SignatureVerifierImplTest {
 
   @Test
   public void verify_invalidStandaloneEcdsaKey_throwsInvalidMaterialException() {
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             ByteString.EMPTY,
             new VerificationMaterial(
                 ByteString.copyFromUtf8("This is not a valid Der encoded key"),
@@ -141,8 +141,8 @@ public class SignatureVerifierImplTest {
     ByteString originalSignatureBytes = signData(TEST_DATA, keyPair.getPrivate(), SHA_WITH_RSA);
     ByteString tamperedSignature =
         originalSignatureBytes.concat(ByteString.copyFromUtf8("tampered"));
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             tamperedSignature,
             new VerificationMaterial(
                 ByteString.copyFrom(certBytes), VerificationMaterial.Format.X509_DER));
@@ -158,8 +158,8 @@ public class SignatureVerifierImplTest {
     byte[] certBytes = createSelfSignedCertificate(keyPair, SHA_WITH_RSA);
     ByteString signatureBytes = signData(TEST_DATA, keyPair.getPrivate(), SHA_WITH_RSA);
 
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             signatureBytes,
             new VerificationMaterial(
                 ByteString.copyFrom(certBytes), VerificationMaterial.Format.X509_DER));
@@ -178,8 +178,8 @@ public class SignatureVerifierImplTest {
     KeyPair keyPair = generateDsaKeyPair(); // DSA is not supported by deduceAlgorithm
     byte[] certBytes = createSelfSignedCertificate(keyPair, SHA_WITH_DSA);
 
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             ByteString.EMPTY,
             new com.google.pes.domain.model.VerificationMaterial(
                 ByteString.copyFrom(certBytes),
@@ -197,8 +197,8 @@ public class SignatureVerifierImplTest {
     KeyPair keyPair = generateRsaKeyPair();
     byte[] certBytes = createSelfSignedCertificate(keyPair, SHA_WITH_RSA);
 
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             ByteString.EMPTY,
             new VerificationMaterial(
                 ByteString.copyFrom(certBytes), VerificationMaterial.Format.X509_DER));
@@ -210,8 +210,8 @@ public class SignatureVerifierImplTest {
 
   @Test
   public void verify_emptyVerificationMaterial_throwsInvalidArgumentException() {
-    Signature signature =
-        new Signature(
+    StatementSignature signature =
+        new StatementSignature(
             ByteString.copyFromUtf8("signature"),
             new VerificationMaterial(ByteString.EMPTY, VerificationMaterial.Format.X509_DER));
 
@@ -224,8 +224,8 @@ public class SignatureVerifierImplTest {
 
   @Test
   public void verify_unsupportedVerificationMethod_throwsIllegalArgumentException() {
-    Signature signatureWithUnspecifiedMethod =
-        new Signature(
+    StatementSignature signatureWithUnspecifiedMethod =
+        new StatementSignature(
             ByteString.copyFromUtf8("signature"),
             new VerificationMaterial(
                 ByteString.copyFromUtf8("material"),

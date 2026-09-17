@@ -27,6 +27,9 @@ java_library(
         "SignatureVerifier.java",
         "TLog.java",
         "TLogException.java",
+        "TsaClient.java",
+        "TsaConfigProvider.java",
+        "TsaException.java",
     ],
     visibility = ["//visibility:public"],
     deps = [

@@ -19,12 +19,17 @@ package com.google.pes.adapters.signatures;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.mbs.MbsCertificateFactory;
 import com.google.pes.domain.model.Signature;
+import com.google.pes.domain.model.TimeStampToken;
 import com.google.pes.domain.model.VerificationMaterial;
 import com.google.pes.domain.ports.PesSignatureException;
+import com.google.pes.domain.ports.TsaClient;
+import com.google.pes.domain.ports.TsaException;
 import com.google.protobuf.ByteString;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -57,17 +62,22 @@ public class SignerImplTest {
 
   @Mock private PrivateKey mockPrivateKey;
   @Mock private X509Certificate mockCertificate;
+  @Mock private TsaClient tsaClient;
 
+  private static final TimeStampToken MOCK_TOKEN =
+      new TimeStampToken(ByteString.copyFrom(new byte[] {4, 5, 6}));
   private static final ByteString TEST_DATA = ByteString.copyFromUtf8("Some data to sign");
 
   private static final MbsCertificateFactory.CertSignatureSpec RSA_SPEC =
       new MbsCertificateFactory.CertSignatureSpec("RSA", 4096, "SHA256withRSA");
+
   private static final MbsCertificateFactory.CertSignatureSpec EC_SPEC =
       new MbsCertificateFactory.CertSignatureSpec("EC", 384, "SHA256withECDSA");
 
   @Before
-  public void setUp() {
+  public void setUp() throws Exception {
     Security.addProvider(new BouncyCastleProvider());
+    when(tsaClient.requestTimeStampToken(any(ByteString.class))).thenReturn(Optional.empty());
   }
 
   @Test
@@ -81,9 +91,9 @@ public class SignerImplTest {
             KeyUsage.digitalSignature);
     MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey = factory.generate();
     X509Certificate cert = certAndKey.certificate();
-    signer = new SignatureGeneratorImpl(cert, certAndKey.privateKey());
+    signer = new SignatureGeneratorImpl(tsaClient);
 
-    Signature result = signer.generate(TEST_DATA);
+    Signature result = signer.generate(TEST_DATA, cert, certAndKey.privateKey());
 
     assertThat(result.verificationMaterial().content())
         .isEqualTo(ByteString.copyFrom(cert.getEncoded()));
@@ -106,9 +116,9 @@ public class SignerImplTest {
             KeyUsage.digitalSignature);
     MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey = factory.generate();
     X509Certificate cert = certAndKey.certificate();
-    signer = new SignatureGeneratorImpl(cert, certAndKey.privateKey());
+    signer = new SignatureGeneratorImpl(tsaClient);
 
-    Signature result = signer.generate(TEST_DATA);
+    Signature result = signer.generate(TEST_DATA, cert, certAndKey.privateKey());
 
     assertThat(result.verificationMaterial().content())
         .isEqualTo(ByteString.copyFrom(cert.getEncoded()));
@@ -134,10 +144,11 @@ public class SignerImplTest {
     X509Certificate cert = certAndKey.certificate();
 
     when(mockPrivateKey.getAlgorithm()).thenReturn("UNSUPPORTED_ALGO");
-    signer = new SignatureGeneratorImpl(cert, mockPrivateKey);
+    signer = new SignatureGeneratorImpl(tsaClient);
 
     PesSignatureException exception =
-        assertThrows(PesSignatureException.class, () -> signer.generate(TEST_DATA));
+        assertThrows(
+            PesSignatureException.class, () -> signer.generate(TEST_DATA, cert, mockPrivateKey));
     assertThat(exception).hasMessageThat().contains("Unsupported key algorithm: UNSUPPORTED_ALGO");
   }
 
@@ -147,9 +158,60 @@ public class SignerImplTest {
     KeyPair keyPair = generateKeyPair("RSA", 2048);
     when(mockCertificate.getEncoded())
         .thenThrow(new CertificateEncodingException("Test encoding error"));
-    signer = new SignatureGeneratorImpl(mockCertificate, keyPair.getPrivate());
+    signer = new SignatureGeneratorImpl(tsaClient);
 
-    assertThrows(PesSignatureException.class, () -> signer.generate(TEST_DATA));
+    assertThrows(
+        PesSignatureException.class,
+        () -> signer.generate(TEST_DATA, mockCertificate, keyPair.getPrivate()));
+  }
+
+  @Test
+  public void generate_tsaEnabled_returnsSignatureWithTimeStampToken() throws Exception {
+    KeyPair keyPair = generateKeyPair("RSA", 2048);
+    when(mockCertificate.getEncoded()).thenReturn(new byte[] {1, 2, 3});
+
+    java.security.Signature rsaSigner = java.security.Signature.getInstance("SHA256withRSA");
+    rsaSigner.initSign(keyPair.getPrivate());
+    rsaSigner.update(TEST_DATA.toByteArray());
+    ByteString expectedSignature = ByteString.copyFrom(rsaSigner.sign());
+
+    when(tsaClient.requestTimeStampToken(expectedSignature)).thenReturn(Optional.of(MOCK_TOKEN));
+    signer = new SignatureGeneratorImpl(tsaClient);
+
+    Signature result = signer.generate(TEST_DATA, mockCertificate, keyPair.getPrivate());
+
+    assertThat(result.signature()).isEqualTo(expectedSignature);
+    assertThat(result.timeStampToken()).hasValue(MOCK_TOKEN);
+    verify(tsaClient).requestTimeStampToken(expectedSignature);
+  }
+
+  @Test
+  public void generate_tsaDisabled_returnsSignatureWithoutTimeStampToken() throws Exception {
+    KeyPair keyPair = generateKeyPair("RSA", 2048);
+    when(mockCertificate.getEncoded()).thenReturn(new byte[] {1, 2, 3});
+
+    when(tsaClient.requestTimeStampToken(any(ByteString.class))).thenReturn(Optional.empty());
+    signer = new SignatureGeneratorImpl(tsaClient);
+
+    Signature result = signer.generate(TEST_DATA, mockCertificate, keyPair.getPrivate());
+
+    assertThat(result.timeStampToken()).isEmpty();
+    verify(tsaClient).requestTimeStampToken(result.signature());
+  }
+
+  @Test
+  public void generate_tsaClientFails_returnsSignatureWithoutTimeStampToken() throws Exception {
+    KeyPair keyPair = generateKeyPair("RSA", 2048);
+    when(mockCertificate.getEncoded()).thenReturn(new byte[] {1, 2, 3});
+
+    when(tsaClient.requestTimeStampToken(any(ByteString.class)))
+        .thenThrow(new TsaException("TSA throws in this test case"));
+    signer = new SignatureGeneratorImpl(tsaClient);
+
+    Signature result = signer.generate(TEST_DATA, mockCertificate, keyPair.getPrivate());
+
+    assertThat(result.timeStampToken()).isEmpty();
+    verify(tsaClient).requestTimeStampToken(result.signature());
   }
 
   private KeyPair generateKeyPair(String algorithm, int keySize) throws NoSuchAlgorithmException {

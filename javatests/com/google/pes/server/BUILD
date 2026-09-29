@@ -20,6 +20,7 @@ java_test(
     srcs = ["PesModuleTest.java"],
     test_class = "com.google.pes.server.PesModuleTest",
     deps = [
+        "//java/com/google/pes/adapters",
         "//java/com/google/pes/adapters/oidc",
         "//java/com/google/pes/adapters/policy",
         "//java/com/google/pes/adapters/signatures",
@@ -44,11 +45,14 @@ java_test(
         "@maven//:io_micrometer_micrometer_registry_prometheus",
         "@maven//:junit_junit",
         "@maven//:org_apache_httpcomponents_client5_httpclient5",
+        "@maven//:org_bouncycastle_bcprov_jdk18on",
         "@maven//:org_mockito_mockito_core",
         "@maven//:software_amazon_awssdk_s3",
         "@pcit_mbs//java/com/google/mbs:certmanagement",
         "@pcit_mbs//java/com/google/mbs:dummy_cert_provider",
         "@pcit_mbs//java/com/google/mbs:module",
+        "@pcit_mbs//java/com/google/mbs/domain",
+        "@pcit_mbs//java/com/google/mbs/qualifier",
     ],
 )
 
@@ -103,6 +107,7 @@ java_test(
         "@maven//:org_mockito_mockito_core",
         "@pcit_api//google/pes/v1:endorsement_proto",
         "@pcit_api//google/pes/v1:public_endorsement_service_proto",
+        "@pcit_mbs//java/com/google/mbs/domain",
     ],
 )
 
@@ -120,6 +125,25 @@ java_test(
         "@maven//:com_google_flogger_flogger",
         "@maven//:com_google_guava_guava",
         "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+        "@maven//:org_mockito_mockito_core",
+        "@pcit_mbs//java/com/google/mbs/domain",
+    ],
+)
+
+java_test(
+    name = "JwtInterceptorTest",
+    size = "small",
+    srcs = ["JwtInterceptorTest.java"],
+    test_class = "com.google.pes.server.JwtInterceptorTest",
+    deps = [
+        "//java/com/google/pes/adapters/oidc",
+        "//java/com/google/pes/domain",
+        "//java/com/google/pes/domain/metric",
+        "//java/com/google/pes/server:server_main",
+        "@io_grpc_grpc_java//api",
+        "@maven//:com_google_truth_truth",
+        "@maven//:io_jsonwebtoken_jjwt_api",
         "@maven//:junit_junit",
         "@maven//:org_mockito_mockito_core",
     ],

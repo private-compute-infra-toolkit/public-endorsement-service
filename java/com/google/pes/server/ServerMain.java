@@ -21,6 +21,8 @@ import com.beust.jcommander.ParameterException;
 import com.google.common.flogger.FluentLogger;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.google.mbs.domain.CertificateMonitor;
+import com.google.mbs.domain.MeasurementBoundCertificateProvider;
 import com.google.pes.adapters.tlog.TLedger;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
@@ -59,8 +61,15 @@ public class ServerMain {
         injector.getInstance(CertificateValidityReporter.class);
     validityReporter.startAsync();
 
+    CertificateMonitor certMonitor = injector.getInstance(CertificateMonitor.class);
+    certMonitor.start();
+
+    MeasurementBoundCertificateProvider certProvider =
+        injector.getInstance(MeasurementBoundCertificateProvider.class);
+
     int port = 50051;
-    PesServer pesServer = new PesServer(port, service, jwtInterceptor, tLedger, meterRegistry);
+    PesServer pesServer =
+        new PesServer(port, service, jwtInterceptor, tLedger, meterRegistry, certProvider);
 
     pesServer.start().join();
 
@@ -72,6 +81,7 @@ public class ServerMain {
                 System.err.println("*** shutting down Armeria server since JVM is shutting down");
                 pesServer.stop().join();
                 validityReporter.stopAsync();
+                certMonitor.stop();
                 System.err.println("*** server shut down");
               }
             });

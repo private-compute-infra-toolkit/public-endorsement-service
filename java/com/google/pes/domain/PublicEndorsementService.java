@@ -17,6 +17,8 @@
 package com.google.pes.domain;
 
 import com.google.common.flogger.FluentLogger;
+import com.google.mbs.domain.MeasurementBoundCertificate;
+import com.google.mbs.domain.MeasurementBoundCertificateProvider;
 import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.Endorsement;
 import com.google.pes.domain.model.Signature;
@@ -44,6 +46,7 @@ public class PublicEndorsementService {
   private final EndorsementVerifier endorsementVerifier;
   private final SignatureGenerator signatureGenerator;
   private final SignatureVerifier signatureVerifier;
+  private final MeasurementBoundCertificateProvider certificateProvider;
   private final Metrics metrics;
 
   @Inject
@@ -52,11 +55,13 @@ public class PublicEndorsementService {
       EndorsementVerifier endorsementVerifier,
       SignatureGenerator signatureGenerator,
       SignatureVerifier signatureVerifier,
+      MeasurementBoundCertificateProvider certificateProvider,
       Metrics metrics) {
     this.tLog = tLog;
     this.endorsementVerifier = endorsementVerifier;
     this.signatureGenerator = signatureGenerator;
     this.signatureVerifier = signatureVerifier;
+    this.certificateProvider = certificateProvider;
     this.metrics = metrics;
   }
 
@@ -72,9 +77,14 @@ public class PublicEndorsementService {
       throw new IllegalArgumentException("The statement format has to be specified");
     }
 
+    MeasurementBoundCertificate mbc = certificateProvider.getActiveTrustPackage().bundles().get(0);
+
     VerifiedEndorsement verifiedEndorsement =
         endorsementVerifier.parseAndVerify(
-            publicEndorsement.statement(), identity, publicEndorsement.statementSignature());
+            publicEndorsement.statement(),
+            identity,
+            publicEndorsement.statementSignature(),
+            mbc.getCertificate());
 
     signatureVerifier.verify(
         publicEndorsement.statementSignature(), publicEndorsement.statement().serialized());
@@ -95,7 +105,8 @@ public class PublicEndorsementService {
     ByteString dataToSign =
         PreAuthenticationEncoding.calculate(
             publicEndorsement.statement(), publicEndorsement.statementSignature(), tLogReceipt);
-    Signature endorsementSignature = signatureGenerator.generate(dataToSign);
+    Signature endorsementSignature =
+        signatureGenerator.generate(dataToSign, mbc.getCertificate(), mbc.getPrivateKey());
 
     metrics.incrementEndorsementCounter(verifiedEndorsement.publisherId());
 

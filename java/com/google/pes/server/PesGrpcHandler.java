@@ -88,6 +88,13 @@ public class PesGrpcHandler extends PublicEndorsementServiceImplBase {
               .withDescription("Error fetching publisher's configuration: " + e.getMessage())
               .withCause(e)
               .asRuntimeException());
+    } catch (IllegalStateException e) {
+      logger.atWarning().withCause(e).log("Service not ready: certificate is not available");
+      responseObserver.onError(
+          Status.UNAVAILABLE
+              .withDescription("Service not ready: " + e.getMessage())
+              .withCause(e)
+              .asRuntimeException());
     }
   }
 }

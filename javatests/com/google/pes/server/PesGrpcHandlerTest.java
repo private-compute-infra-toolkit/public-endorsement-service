@@ -70,12 +70,15 @@ public class PesGrpcHandlerTest {
   @Mock private PublicEndorsementService mockDomainService;
   private PublicEndorsementServiceGrpc.PublicEndorsementServiceBlockingStub blockingStub;
   private PesServer pesServer;
+  private io.grpc.ServerInterceptor dummyAuthInterceptor;
+  private TLedger mockTLedger;
+  private PrometheusMeterRegistry meterRegistry;
 
   @Before
   public void setUp() throws Exception {
     mockDomainService = mock(PublicEndorsementService.class);
 
-    io.grpc.ServerInterceptor dummyAuthInterceptor =
+    dummyAuthInterceptor =
         new io.grpc.ServerInterceptor() {
           @Override
           public <ReqT, RespT> io.grpc.ServerCall.Listener<ReqT> interceptCall(
@@ -91,18 +94,28 @@ public class PesGrpcHandlerTest {
           }
         };
 
-    TLedger mockTLedger = mock(TLedger.class);
+    mockTLedger = mock(TLedger.class);
     when(mockTLedger.isHealthy()).thenReturn(true);
 
-    PrometheusMeterRegistry meterRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+    meterRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
 
+    com.google.mbs.domain.MeasurementBoundCertificateProvider certProvider =
+        () ->
+            new com.google.mbs.domain.TrustPackage(
+                java.util.List.of(
+                    new com.google.mbs.domain.MeasurementBoundCertificate(
+                        org.mockito.Mockito.mock(java.security.cert.X509Certificate.class),
+                        null,
+                        null)),
+                java.util.List.of());
     pesServer =
         new PesServer(
             /* port= */ 0,
             new PesGrpcHandler(mockDomainService),
             dummyAuthInterceptor,
             mockTLedger,
-            meterRegistry);
+            meterRegistry,
+            certProvider);
     pesServer.start().join();
 
     blockingStub =
@@ -230,6 +243,23 @@ public class PesGrpcHandlerTest {
     assertThat(thrown.getStatus().getCode()).isEqualTo(Status.Code.FAILED_PRECONDITION);
   }
 
+  @Test
+  public void createPublicEndorsement_certificateNotReady_unavailable() {
+    when(mockDomainService.createEndorsement(any(), any()))
+        .thenThrow(new IllegalStateException("Certificate has not been initialized yet"));
+
+    StatusRuntimeException thrown =
+        assertThrows(
+            StatusRuntimeException.class,
+            () ->
+                blockingStub.createPublicEndorsement(
+                    CreatePublicEndorsementRequest.getDefaultInstance()));
+
+    assertThat(thrown.getStatus().getCode()).isEqualTo(Status.Code.UNAVAILABLE);
+    assertThat(thrown.getStatus().getDescription())
+        .contains("Service not ready: Certificate has not been initialized yet");
+  }
+
   private CreatePublicEndorsementRequest generatePesRequest() {
     return CreatePublicEndorsementRequest.newBuilder()
         .setPublicEndorsement(
@@ -287,5 +317,40 @@ public class PesGrpcHandlerTest {
     String content = response.contentUtf8();
     assertThat(content).contains("pes_server");
     assertThat(content).contains("armeria_server_connections");
+  }
+
+  @Test
+  public void healthCheck_whenServingAndCertificateAvailable_returnsOk() {
+    WebClient client = WebClient.of("http://localhost:" + pesServer.port());
+    AggregatedHttpResponse response = client.get("/healthz").aggregate().join();
+
+    assertThat(response.status()).isEqualTo(HttpStatus.OK);
+  }
+
+  @Test
+  public void healthCheck_whenCertificateNotAvailableYet_returnsServiceUnavailable() {
+    com.google.mbs.domain.MeasurementBoundCertificateProvider uninitializedProvider =
+        () -> {
+          throw new IllegalStateException("Certificate is not loaded yet");
+        };
+
+    PesServer serverWithUninitializedCert =
+        new PesServer(
+            /* port= */ 0,
+            new PesGrpcHandler(mockDomainService),
+            dummyAuthInterceptor,
+            mockTLedger,
+            meterRegistry,
+            uninitializedProvider);
+    serverWithUninitializedCert.start().join();
+
+    try {
+      WebClient client = WebClient.of("http://localhost:" + serverWithUninitializedCert.port());
+      AggregatedHttpResponse response = client.get("/healthz").aggregate().join();
+
+      assertThat(response.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+    } finally {
+      serverWithUninitializedCert.stop().join();
+    }
   }
 }

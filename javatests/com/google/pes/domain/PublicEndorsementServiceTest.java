@@ -25,6 +25,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.google.mbs.domain.MeasurementBoundCertificate;
+import com.google.mbs.domain.MeasurementBoundCertificateProvider;
+import com.google.mbs.domain.TrustPackage;
 import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.Endorsement;
 import com.google.pes.domain.model.Signature;
@@ -40,6 +43,8 @@ import com.google.pes.domain.ports.SignatureVerifier;
 import com.google.pes.domain.ports.TLog;
 import com.google.pes.domain.ports.TLogException;
 import com.google.protobuf.ByteString;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.Before;
@@ -56,8 +61,12 @@ public class PublicEndorsementServiceTest {
   @Mock private SignatureGenerator mockSignatureGenerator;
   @Mock private SignatureVerifier mockSignatureVerifier;
   @Mock private Metrics mockMetrics;
+  @Mock private MeasurementBoundCertificateProvider mockCertificateProvider;
+  @Mock private X509Certificate mockCertificate;
+  @Mock private PrivateKey mockPrivateKey;
 
   private PublicEndorsementService publicEndorsementService;
+  private MeasurementBoundCertificate testMbc;
   Statement STATEMENT =
       new Statement(Statement.Format.JSON_INTOTO, ByteString.copyFromUtf8("statement"));
   StatementSignature STATEMENT_SIGNATURE =
@@ -73,18 +82,22 @@ public class PublicEndorsementServiceTest {
 
   @Before
   public void setUp() {
+    testMbc = new MeasurementBoundCertificate(mockCertificate, mockPrivateKey, null);
+    when(mockCertificateProvider.getActiveTrustPackage())
+        .thenReturn(new TrustPackage(List.of(testMbc), List.of()));
     publicEndorsementService =
         new PublicEndorsementService(
             mockTLog,
             mockEndorsementVerifier,
             mockSignatureGenerator,
             mockSignatureVerifier,
+            mockCertificateProvider,
             mockMetrics);
   }
 
   @Test
   public void createEndorsement_success() {
-    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any(), any()))
         .thenReturn(new VerifiedEndorsement("publisherId"));
     TLogReceipt tLogReceipt = new TLogReceipt("logId");
     when(mockTLog.post(any())).thenReturn(tLogReceipt);
@@ -97,7 +110,9 @@ public class PublicEndorsementServiceTest {
                 VerificationMaterial.Format.ECDSA_P256_SHA256),
             Optional.empty());
     when(mockSignatureGenerator.generate(
-            eq(PreAuthenticationEncoding.calculate(STATEMENT, STATEMENT_SIGNATURE, tLogReceipt))))
+            eq(PreAuthenticationEncoding.calculate(STATEMENT, STATEMENT_SIGNATURE, tLogReceipt)),
+            eq(mockCertificate),
+            eq(mockPrivateKey)))
         .thenReturn(endorsementSignature);
 
     Endorsement result =
@@ -109,8 +124,10 @@ public class PublicEndorsementServiceTest {
     assertThat(result.tLogReceipt()).isEqualTo(tLogReceipt);
     assertThat(result.name()).startsWith("endorsements/");
 
+    verify(mockCertificateProvider).getActiveTrustPackage();
     verify(mockEndorsementVerifier)
-        .parseAndVerify(eq(STATEMENT), eq(TEST_IDENTITY), eq(STATEMENT_SIGNATURE));
+        .parseAndVerify(
+            eq(STATEMENT), eq(TEST_IDENTITY), eq(STATEMENT_SIGNATURE), eq(mockCertificate));
     verify(mockSignatureVerifier).verify(eq(STATEMENT_SIGNATURE), eq(STATEMENT.serialized()));
     verify(mockMetrics).incrementEndorsementCounter(eq("publisherId"));
   }
@@ -131,7 +148,7 @@ public class PublicEndorsementServiceTest {
   public void createEndorsement_endorsementVerifierThrowsException_propagatesException() {
     doThrow(new IllegalArgumentException("Verification failed"))
         .when(mockEndorsementVerifier)
-        .parseAndVerify(any(), any(), any());
+        .parseAndVerify(any(), any(), any(), any());
 
     assertThrows(
         IllegalArgumentException.class,
@@ -141,7 +158,7 @@ public class PublicEndorsementServiceTest {
 
   @Test
   public void createEndorsement_tLogThrowsException_propagatesException() {
-    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any(), any()))
         .thenReturn(new VerifiedEndorsement("publisherId"));
     when(mockTLog.post(any())).thenThrow(new TLogException("TLog error"));
 
@@ -153,7 +170,7 @@ public class PublicEndorsementServiceTest {
 
   @Test
   public void createEndorsement_signatureVerifierThrowsException_propagatesException() {
-    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any(), any()))
         .thenReturn(new VerifiedEndorsement("publisherId"));
     doThrow(new InvalidSignatureException("Invalid sig"))
         .when(mockSignatureVerifier)
@@ -167,10 +184,10 @@ public class PublicEndorsementServiceTest {
 
   @Test
   public void createEndorsement_signerThrowsException_propagatesException() {
-    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any(), any()))
         .thenReturn(new VerifiedEndorsement("publisherId"));
     when(mockTLog.post(any())).thenReturn(new TLogReceipt("logId"));
-    when(mockSignatureGenerator.generate(any()))
+    when(mockSignatureGenerator.generate(any(), any(), any()))
         .thenThrow(new PesSignatureException("Signer error"));
 
     assertThrows(

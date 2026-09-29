@@ -160,6 +160,7 @@ java_test(
         "@maven//:io_micrometer_micrometer_core",
         "@maven//:io_micrometer_micrometer_registry_prometheus",
         "@maven//:junit_junit",
+        "@pcit_mbs//java/com/google/mbs/domain",
     ],
 )
 
@@ -171,8 +172,12 @@ java_test(
     deps = [
         "//java/com/google/pes/adapters/oidc",
         "//java/com/google/pes/server:aws_metadata",
+        "@maven//:com_google_truth_truth",
         "@maven//:io_jsonwebtoken_jjwt_api",
         "@maven//:junit_junit",
+        "@maven//:org_bouncycastle_bcprov_jdk18on",
         "@maven//:org_mockito_mockito_core",
+        "@pcit_mbs//java/com/google/mbs:certmanagement",
+        "@pcit_mbs//java/com/google/mbs/domain",
     ],
 )

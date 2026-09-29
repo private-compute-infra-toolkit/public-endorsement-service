@@ -43,7 +43,10 @@
               "source_labels": ["job"],
               "label_matcher": "^pes$",
               "dimensions": [[]],
-              "metric_selectors": ["^pes_root_certificate_validity_seconds$"]
+              "metric_selectors": [
+                "^pes_root_certificate_validity_seconds$",
+                "^pes_certificate_reload_failed$"
+              ]
             }
           ]
         }

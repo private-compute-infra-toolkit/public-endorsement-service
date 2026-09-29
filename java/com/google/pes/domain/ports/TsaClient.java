@@ -20,17 +20,25 @@ import com.google.pes.domain.model.TimeStampToken;
 import com.google.protobuf.ByteString;
 import java.util.Optional;
 
-/** Port for interacting with an RFC 3161 Time-Stamping Authority (TSA). */
+/**
+ * Port for interacting with an RFC 3161 Time-Stamping Authority (TSA).
+ *
+ * <p>Implementations of this interface must be thread-safe.
+ */
 public interface TsaClient {
 
   /**
    * Requests an RFC 3161 timestamp token for the provided data.
    *
-   * @param data the data to be timestamped
-   * @return an {@link Optional} containing the cryptographically validated {@link TimeStampToken}
-   *     for {@code data}, or {@link Optional#empty()} if TSA timestamping is disabled
+   * <p>TODO: RFC 3161 response validation and CMS signature verification against trusted root
+   * certificates.
+   *
+   * @param data the non-empty data to be timestamped
+   * @return an {@link Optional} containing the {@link TimeStampToken} for {@code data}, or {@link
+   *     Optional#empty()} strictly when TSA timestamping is disabled by configuration (never null)
    * @throws NullPointerException if {@code data} is null
-   * @throws TsaException if communicating with the TSA fails or response validation fails
+   * @throws IllegalArgumentException if {@code data} is empty
+   * @throws TsaException if communicating with the TSA or parsing the response fails
    */
-  Optional<TimeStampToken> getTimeStampToken(ByteString data);
+  Optional<TimeStampToken> requestTimeStampToken(ByteString data);
 }

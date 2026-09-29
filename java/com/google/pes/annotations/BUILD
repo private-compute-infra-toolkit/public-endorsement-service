@@ -19,7 +19,6 @@ java_library(
     srcs = [
         "PolicyBucket.java",
         "TLedgerUrl.java",
-        "TrustDomain.java",
     ],
     visibility = ["//visibility:public"],
     deps = [

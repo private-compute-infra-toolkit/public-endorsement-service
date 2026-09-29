@@ -17,7 +17,6 @@
 package com.google.pes.domain;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.mbs.qualifier.MbsRoot;
 import com.google.pes.adapters.statementvalidation.InTotoStatement;
 import com.google.pes.adapters.statementvalidation.OakPredicate;
 import com.google.pes.domain.model.Statement;
@@ -41,18 +40,15 @@ public class EndorsementVerifier {
 
   private final Map<Statement.Format, Provider<PublisherIdProvider>> publisherIdProviders;
   private final PublisherVerifier publisherVerifier;
-  private final X509Certificate rootCertificate;
   private final ObjectMapper objectMapper;
 
   @Inject
   EndorsementVerifier(
       Map<Statement.Format, Provider<PublisherIdProvider>> publisherIdProviders,
       PublisherVerifier publisherVerifier,
-      @MbsRoot X509Certificate rootCertificate,
       ObjectMapper objectMapper) {
     this.publisherIdProviders = publisherIdProviders;
     this.publisherVerifier = publisherVerifier;
-    this.rootCertificate = rootCertificate;
     this.objectMapper = objectMapper;
   }
 
@@ -68,7 +64,10 @@ public class EndorsementVerifier {
    * @throws IllegalArgumentException if statement verification or policy verification fails.
    */
   public VerifiedEndorsement parseAndVerify(
-      Statement statement, CallerIdentity identity, StatementSignature signature) {
+      Statement statement,
+      CallerIdentity identity,
+      StatementSignature signature,
+      X509Certificate rootCertificate) {
     if (statement.format() == Statement.Format.FORMAT_UNSPECIFIED) {
       throw new IllegalArgumentException("The statement format has to be specified");
     }
@@ -83,7 +82,7 @@ public class EndorsementVerifier {
     }
 
     validatePredicateType(inTotoStatement);
-    validateNotAfter(inTotoStatement.getPredicate());
+    validateNotAfter(inTotoStatement.getPredicate(), rootCertificate);
     String publisherId = validatePublisherAndGetPublisherId(statement, identity, signature);
     return new VerifiedEndorsement(publisherId);
   }
@@ -94,7 +93,7 @@ public class EndorsementVerifier {
     }
   }
 
-  private void validateNotAfter(OakPredicate predicate) {
+  private void validateNotAfter(OakPredicate predicate, X509Certificate rootCertificate) {
     if (predicate.getValidity() == null) {
       throw new IllegalArgumentException("Failed to resolve predicate validity");
     }

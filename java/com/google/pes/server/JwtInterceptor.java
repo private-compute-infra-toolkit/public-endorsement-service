@@ -89,10 +89,21 @@ public final class JwtInterceptor implements ServerInterceptor {
       return new ServerCall.Listener<ReqT>() {};
     } catch (AudienceValidationException e) {
       logger.atWarning().withCause(e).log("OIDC audience validation failed");
+      metrics.incrementAuthenticationCounter(FAILURE);
       call.close(Status.PERMISSION_DENIED.withDescription(e.getMessage()), new Metadata());
+      return new ServerCall.Listener<ReqT>() {};
+    } catch (IllegalStateException e) {
+      // The certificate or trust domain is not available yet during startup or reload.
+      // Return UNAVAILABLE so clients and probers retry, and avoid polluting authentication
+      // metrics.
+      logger.atWarning().withCause(e).log("PES service is not ready: certificate is not available");
+      call.close(
+          Status.UNAVAILABLE.withDescription("Service not ready: " + e.getMessage()),
+          new Metadata());
       return new ServerCall.Listener<ReqT>() {};
     } catch (IllegalArgumentException e) {
       logger.atWarning().withCause(e).log("Illegal argument during OIDC validation");
+      metrics.incrementAuthenticationCounter(FAILURE);
       call.close(Status.INVALID_ARGUMENT.withDescription(e.getMessage()), new Metadata());
       return new ServerCall.Listener<ReqT>() {};
     }

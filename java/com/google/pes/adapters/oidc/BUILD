@@ -30,7 +30,6 @@ java_library(
         "@maven//:com_google_flogger_flogger_system_backend",
     ],
     deps = [
-        "//java/com/google/pes/annotations",
         "//java/com/google/pes/domain",
         "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
@@ -54,5 +53,6 @@ java_library(
         "@maven//:io_jsonwebtoken_jjwt_jackson",
         "@maven//:jakarta_inject_jakarta_inject_api",
         "@maven//:org_apache_httpcomponents_client5_httpclient5",
+        "@pcit_mbs//java/com/google/mbs/domain",
     ],
 )

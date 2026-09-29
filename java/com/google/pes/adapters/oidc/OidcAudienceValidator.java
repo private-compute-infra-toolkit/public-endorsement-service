@@ -17,16 +17,19 @@
 package com.google.pes.adapters.oidc;
 
 import com.google.common.flogger.FluentLogger;
-import com.google.pes.annotations.TrustDomain;
+import com.google.mbs.domain.MeasurementBoundCertificateProvider;
 import com.google.pes.domain.CallerIdentity;
 import com.google.pes.domain.JwtAuth;
+import com.google.pes.domain.TrustDomainExtractor;
 import com.google.pes.server.AwsInstanceMetadata;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.Locator;
 import jakarta.inject.Inject;
+import java.net.URISyntaxException;
 import java.security.Key;
+import java.security.cert.CertificateParsingException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -40,16 +43,16 @@ public final class OidcAudienceValidator {
   private static final Pattern AUDIENCE_PATTERN =
       Pattern.compile("^https://([^/]+)(?:/v1/endorsements)?$");
 
-  private final String trustDomain;
+  private final MeasurementBoundCertificateProvider certificateProvider;
   private final AwsInstanceMetadata metadata;
   private final Locator<Key> keyLocator;
 
   @Inject
   public OidcAudienceValidator(
-      @TrustDomain String trustDomain,
+      MeasurementBoundCertificateProvider certificateProvider,
       AwsInstanceMetadata metadata,
       @JwtAuth Locator<Key> keyLocator) {
-    this.trustDomain = trustDomain;
+    this.certificateProvider = certificateProvider;
     this.metadata = metadata;
     this.keyLocator = keyLocator;
   }
@@ -65,11 +68,12 @@ public final class OidcAudienceValidator {
   }
 
   void validateAudience(Set<String> audiences) {
+    String trustDomain = resolveTrustDomain();
     for (String audience : audiences) {
       Matcher matcher = AUDIENCE_PATTERN.matcher(audience);
       if (matcher.matches()) {
         String hostname = matcher.group(1);
-        if (isValidHostname(hostname)) {
+        if (isValidHostname(hostname, trustDomain)) {
           return;
         }
       }
@@ -83,7 +87,7 @@ public final class OidcAudienceValidator {
     throw new AudienceValidationException("OIDC audience binding validation failed.");
   }
 
-  private boolean isValidHostname(String hostname) {
+  private boolean isValidHostname(String hostname, String trustDomain) {
     if (hostname.equals(trustDomain)) {
       return true;
     }
@@ -99,6 +103,21 @@ public final class OidcAudienceValidator {
     }
 
     return false;
+  }
+
+  /**
+   * Resolves the SPIFFE trust domain from the currently active root certificate.
+   *
+   * @throws IllegalStateException if the root certificate has not been loaded yet.
+   */
+  private String resolveTrustDomain() {
+    try {
+      return TrustDomainExtractor.extract(
+          certificateProvider.getActiveTrustPackage().bundles().get(0).getCertificate());
+    } catch (CertificateParsingException | URISyntaxException | IllegalArgumentException e) {
+      throw new IllegalStateException(
+          "Failed to extract trust domain from active root certificate", e);
+    }
   }
 
   private CallerIdentity parseBearerToken(String token) throws JwtException {

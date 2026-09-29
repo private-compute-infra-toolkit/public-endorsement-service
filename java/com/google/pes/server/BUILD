@@ -124,5 +124,7 @@ java_binary(
         "@pcit_api//google/pes/v1:public_endorsement_service_proto",
         "@pcit_mbs//java/com/google/mbs:certmanagement",
         "@pcit_mbs//java/com/google/mbs:module",
+        "@pcit_mbs//java/com/google/mbs/domain",
+        "@pcit_mbs//java/com/google/mbs/qualifier",
     ],
 )

@@ -17,6 +17,7 @@
 package com.google.pes.server;
 
 import com.google.common.flogger.FluentLogger;
+import com.google.mbs.domain.MeasurementBoundCertificateProvider;
 import com.google.pes.adapters.tlog.TLedger;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
@@ -40,6 +41,7 @@ public class PesServer {
 
   private final Server server;
   private final HealthManager healthManager;
+  private final MeasurementBoundCertificateProvider certificateProvider;
   private final int port;
 
   public PesServer(
@@ -47,8 +49,10 @@ public class PesServer {
       PesGrpcHandler service,
       ServerInterceptor jwtInterceptor,
       TLedger tLedger,
-      PrometheusMeterRegistry meterRegistry) {
+      PrometheusMeterRegistry meterRegistry,
+      MeasurementBoundCertificateProvider certificateProvider) {
     this.port = port;
+    this.certificateProvider = certificateProvider;
     this.healthManager = new HealthManager(tLedger);
 
     final GrpcService grpcService =
@@ -68,7 +72,7 @@ public class PesServer {
             .service(
                 "/healthz",
                 (ctx, req) -> {
-                  if (healthManager.isServing()) {
+                  if (isHealthy()) {
                     return HttpResponse.of(HttpStatus.OK);
                   }
                   return HttpResponse.of(HttpStatus.SERVICE_UNAVAILABLE);
@@ -77,6 +81,21 @@ public class PesServer {
                 "/metrics", PrometheusExpositionService.of(meterRegistry.getPrometheusRegistry()))
             .decorator(LoggingService.newDecorator())
             .build();
+  }
+
+  boolean isHealthy() {
+    if (!healthManager.isServing()) {
+      return false;
+    }
+    try {
+      return certificateProvider.getActiveTrustPackage().bundles().get(0) != null;
+    } catch (IllegalStateException e) {
+      logger.atFine().log("Healthcheck failed: certificate is not available yet.");
+      return false;
+    } catch (Exception e) {
+      logger.atWarning().withCause(e).log("Healthcheck failed with unexpected exception");
+      return false;
+    }
   }
 
   public CompletableFuture<Void> start() {

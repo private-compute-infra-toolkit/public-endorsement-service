@@ -17,11 +17,13 @@ package com.google.pes.adapters.signatures;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.mbs.qualifier.MbsRoot;
+import com.google.common.flogger.FluentLogger;
 import com.google.pes.domain.model.Signature;
+import com.google.pes.domain.model.TimeStampToken;
 import com.google.pes.domain.model.VerificationMaterial;
 import com.google.pes.domain.ports.PesSignatureException;
 import com.google.pes.domain.ports.SignatureGenerator;
+import com.google.pes.domain.ports.TsaClient;
 import com.google.protobuf.ByteString;
 import jakarta.inject.Inject;
 import java.security.GeneralSecurityException;
@@ -31,27 +33,39 @@ import java.security.cert.X509Certificate;
 import java.util.Optional;
 
 public class SignatureGeneratorImpl implements SignatureGenerator {
-  private final X509Certificate certificate;
-  private final PrivateKey privateKey;
+  private static final FluentLogger logger = FluentLogger.forEnclosingClass();
+
+  private final TsaClient tsaClient;
 
   @Inject
-  SignatureGeneratorImpl(@MbsRoot X509Certificate certificate, @MbsRoot PrivateKey privateKey) {
-    this.certificate = checkNotNull(certificate, "Certificate cannot be null.");
-    this.privateKey = checkNotNull(privateKey, "PrivateKey cannot be null.");
+  SignatureGeneratorImpl(TsaClient tsaClient) {
+    this.tsaClient = checkNotNull(tsaClient, "TsaClient cannot be null.");
   }
 
   @Override
-  public Signature generate(ByteString data) {
+  public Signature generate(ByteString data, X509Certificate certificate, PrivateKey privateKey) {
+    checkNotNull(certificate, "Certificate cannot be null.");
+    checkNotNull(privateKey, "Private key cannot be null.");
+
     byte[] certificateDer = getCertificateBytes(certificate);
 
     String algorithm = getSigningAlgorithm(privateKey.getAlgorithm());
     byte[] signatureBytes = sign(data, privateKey, algorithm);
+    ByteString signatureByteString = ByteString.copyFrom(signatureBytes);
+
+    Optional<TimeStampToken> token = Optional.empty();
+    try {
+      token = tsaClient.requestTimeStampToken(signatureByteString);
+    } catch (Exception e) {
+      logger.atWarning().withCause(e).log(
+          "Failed to obtain TSA timestamp token. Proceeding without timestamp.");
+    }
 
     return new Signature(
-        ByteString.copyFrom(signatureBytes),
+        signatureByteString,
         new VerificationMaterial(
             ByteString.copyFrom(certificateDer), VerificationMaterial.Format.X509_DER),
-        Optional.empty());
+        token);
   }
 
   private byte[] getCertificateBytes(X509Certificate certificate) {

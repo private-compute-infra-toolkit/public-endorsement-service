@@ -18,7 +18,9 @@ package com.google.pes.domain.ports;
 
 import com.google.pes.domain.model.Signature;
 import com.google.protobuf.ByteString;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 
 public interface SignatureGenerator {
-  Signature generate(ByteString data);
+  Signature generate(ByteString data, X509Certificate certificate, PrivateKey privateKey);
 }

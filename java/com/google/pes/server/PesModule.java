@@ -26,8 +26,8 @@ import com.google.inject.multibindings.MapBinder;
 import com.google.mbs.MbsCertificateFactory;
 import com.google.mbs.MbsModule;
 import com.google.mbs.qualifier.AttestationUserData;
+import com.google.mbs.qualifier.InstanceId;
 import com.google.mbs.qualifier.KmsKeyArn;
-import com.google.mbs.qualifier.MbsRoot;
 import com.google.mbs.qualifier.PrivateBackupBucket;
 import com.google.mbs.qualifier.PublicBackupBucket;
 import com.google.pes.adapters.SystemMetrics;
@@ -43,13 +43,12 @@ import com.google.pes.adapters.tlog.TLedgerCertBucketName;
 import com.google.pes.adapters.tlog.TLedgerCertName;
 import com.google.pes.adapters.tsa.RandomTsaUrlSelector;
 import com.google.pes.adapters.tsa.S3TsaConfigProvider;
+import com.google.pes.adapters.tsa.SimpleTsaClient;
 import com.google.pes.adapters.tsa.TsaConfigBucketName;
 import com.google.pes.adapters.tsa.TsaUrlSelector;
 import com.google.pes.annotations.PolicyBucket;
 import com.google.pes.annotations.TLedgerUrl;
-import com.google.pes.annotations.TrustDomain;
 import com.google.pes.domain.JwtAuth;
-import com.google.pes.domain.TrustDomainExtractor;
 import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.Statement;
 import com.google.pes.domain.ports.PolicyProvider;
@@ -57,6 +56,7 @@ import com.google.pes.domain.ports.PublisherIdProvider;
 import com.google.pes.domain.ports.SignatureGenerator;
 import com.google.pes.domain.ports.SignatureVerifier;
 import com.google.pes.domain.ports.TLog;
+import com.google.pes.domain.ports.TsaClient;
 import com.google.pes.domain.ports.TsaConfigProvider;
 import io.jsonwebtoken.Locator;
 import io.micrometer.core.instrument.config.MeterFilter;
@@ -66,11 +66,10 @@ import jakarta.inject.Singleton;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
-import java.security.cert.CertificateParsingException;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
+import java.util.Objects;
 import java.util.Optional;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -122,7 +121,8 @@ public class PesModule extends AbstractModule {
     validatorMapBinder.addBinding(Statement.Format.JSON_INTOTO).to(JsonPublisherIdProvider.class);
 
     bind(InstantSource.class).toInstance(InstantSource.system());
-    bind(HttpClient.class).toInstance(HttpClient.newHttpClient());
+    bind(HttpClient.class)
+        .toInstance(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build());
 
     bind(TLog.class).to(TLedger.class);
     bind(PolicyProvider.class).to(S3PolicyProvider.class);
@@ -130,8 +130,9 @@ public class PesModule extends AbstractModule {
     bind(SignatureVerifier.class).to(SignatureVerifierImpl.class);
     bind(TsaConfigProvider.class).to(S3TsaConfigProvider.class);
     bind(TsaUrlSelector.class).to(RandomTsaUrlSelector.class);
+    bind(TsaClient.class).to(SimpleTsaClient.class);
     bind(Metrics.class).to(SystemMetrics.class);
-    bind(com.google.mbs.Metrics.class).to(SystemMetrics.class);
+    bind(com.google.mbs.domain.Metrics.class).to(SystemMetrics.class);
 
     install(new MbsModule(awsInstanceMetadata.region()));
     bind(String.class).annotatedWith(KmsKeyArn.class).toInstance(awsResourceNames.kmsKeyArn());
@@ -141,6 +142,10 @@ public class PesModule extends AbstractModule {
     bind(String.class)
         .annotatedWith(PrivateBackupBucket.class)
         .toInstance(awsResourceNames.keyBackupBucketName());
+    bind(String.class)
+        .annotatedWith(InstanceId.class)
+        .toInstance(
+            Objects.requireNonNull(awsInstanceMetadata.instanceId(), "instanceId cannot be null"));
   }
 
   @Provides
@@ -176,14 +181,6 @@ public class PesModule extends AbstractModule {
         Duration.between(Instant.now(), Instant.parse("2027-03-02T13:00:00Z")),
         san,
         KeyUsage.digitalSignature);
-  }
-
-  @Provides
-  @Singleton
-  @TrustDomain
-  String provideTrustDomain(@MbsRoot X509Certificate rootCertificate)
-      throws CertificateParsingException, java.net.URISyntaxException {
-    return TrustDomainExtractor.extract(rootCertificate);
   }
 
   @Provides

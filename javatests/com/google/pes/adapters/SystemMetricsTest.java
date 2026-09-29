@@ -145,4 +145,18 @@ public class SystemMetricsTest {
     systemMetrics.setRootCertificateValidity(Duration.ofMinutes(10));
     assertThat(gauge.value()).isEqualTo(600.0);
   }
+
+  @Test
+  public void setReloadStatus_updatesFailureGauge() {
+    io.micrometer.core.instrument.Gauge gauge =
+        registry.get("pes.certificate_reload_failed").gauge();
+    assertThat(gauge).isNotNull();
+    assertThat(gauge.value()).isEqualTo(0.0);
+
+    systemMetrics.setReloadStatus(com.google.mbs.domain.Metrics.ReloadStatus.FAILURE);
+    assertThat(gauge.value()).isEqualTo(1.0);
+
+    systemMetrics.setReloadStatus(com.google.mbs.domain.Metrics.ReloadStatus.SUCCESS);
+    assertThat(gauge.value()).isEqualTo(0.0);
+  }
 }

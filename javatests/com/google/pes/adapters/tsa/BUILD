@@ -15,6 +15,25 @@
 load("@rules_java//java:defs.bzl", "java_test")
 
 java_test(
+    name = "SimpleTsaClientTest",
+    size = "small",
+    srcs = ["SimpleTsaClientTest.java"],
+    test_class = "com.google.pes.adapters.tsa.SimpleTsaClientTest",
+    deps = [
+        "//java/com/google/pes/adapters/tsa",
+        "//java/com/google/pes/domain/model",
+        "//java/com/google/pes/domain/ports",
+        "@com_google_protobuf//:protobuf_java",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+        "@maven//:org_bouncycastle_bcpkix_jdk18on",
+        "@maven//:org_bouncycastle_bcprov_jdk18on",
+        "@maven//:org_bouncycastle_bcutil_jdk18on",
+        "@maven//:org_mockito_mockito_core",
+    ],
+)
+
+java_test(
     name = "RandomTsaUrlSelectorTest",
     size = "small",
     srcs = ["RandomTsaUrlSelectorTest.java"],

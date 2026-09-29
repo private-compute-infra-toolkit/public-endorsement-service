@@ -17,7 +17,7 @@
 package com.google.pes.adapters;
 
 import com.google.common.flogger.FluentLogger;
-import com.google.mbs.Metrics.MbsEvent;
+import com.google.mbs.domain.Metrics.MbsEvent;
 import com.google.pes.domain.metric.AuthenticationStatus;
 import com.google.pes.domain.metric.Metrics;
 import io.micrometer.core.instrument.Counter;
@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Singleton
-public class SystemMetrics implements Metrics, com.google.mbs.Metrics {
+public class SystemMetrics implements Metrics, com.google.mbs.domain.Metrics {
 
   private static final FluentLogger logger = FluentLogger.forEnclosingClass();
   private static final String PREFIX = "pes.";
@@ -46,6 +46,7 @@ public class SystemMetrics implements Metrics, com.google.mbs.Metrics {
   private final ConcurrentHashMap<String, Counter> endorsementCounters = new ConcurrentHashMap<>();
   private final AtomicLong rootCertificateValiditySeconds = new AtomicLong(0);
   private final AtomicBoolean rootCertificateValiditySecondsRegistered = new AtomicBoolean(false);
+  private final AtomicInteger certificateReloadFailed = new AtomicInteger(0);
 
   @Inject
   public SystemMetrics(PrometheusMeterRegistry registry) {
@@ -53,6 +54,9 @@ public class SystemMetrics implements Metrics, com.google.mbs.Metrics {
     this.authenticationCounter =
         createCounters(PREFIX + "authenticationStatus", "status", AuthenticationStatus.class);
     this.mbsStatusValues = createGauges(PREFIX + "mbsStatus", "status", MbsEvent.class);
+    Gauge.builder(PREFIX + "certificate_reload_failed", certificateReloadFailed, AtomicInteger::get)
+        .description("Indicates whether certificate reloading failed (0: success, 1: failed)")
+        .register(registry);
   }
 
   private <E extends Enum<E>> Counter[] createCounters(
@@ -131,6 +135,11 @@ public class SystemMetrics implements Metrics, com.google.mbs.Metrics {
         mbsStatusValues[e.ordinal()].set(e == event ? 1 : 0);
       }
     }
+  }
+
+  @Override
+  public void setReloadStatus(ReloadStatus status) {
+    certificateReloadFailed.set(status == ReloadStatus.FAILURE ? 1 : 0);
   }
 
   @Override

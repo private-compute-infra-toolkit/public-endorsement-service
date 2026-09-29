@@ -35,6 +35,7 @@ java_test(
         "@maven//:jakarta_inject_jakarta_inject_api",
         "@maven//:junit_junit",
         "@maven//:org_mockito_mockito_core",
+        "@pcit_mbs//java/com/google/mbs/domain",
     ],
 )
 
@@ -92,6 +93,7 @@ java_test(
         "@maven//:junit_junit",
         "@maven//:org_mockito_mockito_core",
         "@pcit_mbs//java/com/google/mbs:certmanagement",
+        "@pcit_mbs//java/com/google/mbs/domain",
     ],
 )
 

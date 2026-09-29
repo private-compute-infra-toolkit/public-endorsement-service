@@ -103,7 +103,6 @@ public class EndorsementVerifierTest {
         new EndorsementVerifier(
             Map.of(Statement.Format.JSON_INTOTO, () -> mockPublisherIdProvider),
             mockPublisherVerifier,
-            mockRootCertificate,
             objectMapper);
   }
 
@@ -111,7 +110,10 @@ public class EndorsementVerifierTest {
   public void parseAndVerify_success() {
     VerifiedEndorsement verifiedEndorsement =
         verifier.parseAndVerify(
-            TEST_ENDORSEMENT.statement(), TEST_IDENTITY, TEST_ENDORSEMENT.statementSignature());
+            TEST_ENDORSEMENT.statement(),
+            TEST_IDENTITY,
+            TEST_ENDORSEMENT.statementSignature(),
+            mockRootCertificate);
 
     assertThat(verifiedEndorsement.publisherId()).isEqualTo(TEST_PUBLISHER_ID);
     verify(mockPublisherVerifier)
@@ -125,7 +127,8 @@ public class EndorsementVerifierTest {
 
     assertThrows(
         IllegalArgumentException.class,
-        () -> verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE));
+        () ->
+            verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE, mockRootCertificate));
     verifyNoInteractions(mockPublisherVerifier);
   }
 
@@ -143,7 +146,8 @@ public class EndorsementVerifierTest {
             verifier.parseAndVerify(
                 inputEndorsement.statement(),
                 TEST_IDENTITY,
-                inputEndorsement.statementSignature()));
+                inputEndorsement.statementSignature(),
+                mockRootCertificate));
     verifyNoInteractions(mockPublisherVerifier);
   }
 
@@ -159,7 +163,8 @@ public class EndorsementVerifierTest {
                 verifier.parseAndVerify(
                     TEST_ENDORSEMENT.statement(),
                     TEST_IDENTITY,
-                    TEST_ENDORSEMENT.statementSignature()));
+                    TEST_ENDORSEMENT.statementSignature(),
+                    mockRootCertificate));
 
     assertThat(thrown).hasMessageThat().contains("cannot be past root certificate expiration date");
     verifyNoInteractions(mockPublisherVerifier);
@@ -172,7 +177,10 @@ public class EndorsementVerifierTest {
 
     VerifiedEndorsement verifiedEndorsement =
         verifier.parseAndVerify(
-            TEST_ENDORSEMENT.statement(), TEST_IDENTITY, TEST_ENDORSEMENT.statementSignature());
+            TEST_ENDORSEMENT.statement(),
+            TEST_IDENTITY,
+            TEST_ENDORSEMENT.statementSignature(),
+            mockRootCertificate);
 
     assertThat(verifiedEndorsement.publisherId()).isEqualTo(TEST_PUBLISHER_ID);
     verify(mockPublisherVerifier)
@@ -186,7 +194,9 @@ public class EndorsementVerifierTest {
     IllegalArgumentException thrown =
         assertThrows(
             IllegalArgumentException.class,
-            () -> verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE));
+            () ->
+                verifier.parseAndVerify(
+                    statement, TEST_IDENTITY, TEST_SIGNATURE, mockRootCertificate));
 
     assertThat(thrown).hasMessageThat().contains("Missing required creator property 'validity'");
     verifyNoInteractions(mockPublisherVerifier);
@@ -199,7 +209,9 @@ public class EndorsementVerifierTest {
     IllegalArgumentException thrown =
         assertThrows(
             IllegalArgumentException.class,
-            () -> verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE));
+            () ->
+                verifier.parseAndVerify(
+                    statement, TEST_IDENTITY, TEST_SIGNATURE, mockRootCertificate));
 
     assertThat(thrown).hasMessageThat().contains("Missing required creator property 'notAfter'");
     verifyNoInteractions(mockPublisherVerifier);
@@ -207,19 +219,15 @@ public class EndorsementVerifierTest {
 
   @Test
   public void parseAndVerify_nullRootCertificate_throwsIllegalArgumentException() {
-    EndorsementVerifier verifierWithNullRoot =
-        new EndorsementVerifier(
-            Map.of(Statement.Format.JSON_INTOTO, () -> mockPublisherIdProvider),
-            mockPublisherVerifier,
-            /* rootCertificate= */ null,
-            objectMapper);
-
     IllegalArgumentException thrown =
         assertThrows(
             IllegalArgumentException.class,
             () ->
-                verifierWithNullRoot.parseAndVerify(
-                    TEST_ENDORSEMENT.statement(), TEST_IDENTITY, TEST_SIGNATURE));
+                verifier.parseAndVerify(
+                    TEST_ENDORSEMENT.statement(),
+                    TEST_IDENTITY,
+                    TEST_SIGNATURE,
+                    /* rootCertificate= */ null));
 
     assertThat(thrown)
         .hasMessageThat()
@@ -236,7 +244,10 @@ public class EndorsementVerifierTest {
             IllegalArgumentException.class,
             () ->
                 verifier.parseAndVerify(
-                    TEST_ENDORSEMENT.statement(), TEST_IDENTITY, TEST_SIGNATURE));
+                    TEST_ENDORSEMENT.statement(),
+                    TEST_IDENTITY,
+                    TEST_SIGNATURE,
+                    mockRootCertificate));
 
     assertThat(thrown)
         .hasMessageThat()
@@ -255,7 +266,8 @@ public class EndorsementVerifierTest {
             verifier.parseAndVerify(
                 TEST_ENDORSEMENT.statement(),
                 TEST_IDENTITY,
-                TEST_ENDORSEMENT.statementSignature()));
+                TEST_ENDORSEMENT.statementSignature(),
+                mockRootCertificate));
     verifyNoInteractions(mockPublisherVerifier);
   }
 
@@ -271,7 +283,8 @@ public class EndorsementVerifierTest {
             verifier.parseAndVerify(
                 TEST_ENDORSEMENT.statement(),
                 TEST_IDENTITY,
-                TEST_ENDORSEMENT.statementSignature()));
+                TEST_ENDORSEMENT.statementSignature(),
+                mockRootCertificate));
   }
 
   @Test
@@ -280,7 +293,8 @@ public class EndorsementVerifierTest {
 
     assertThrows(
         IllegalArgumentException.class,
-        () -> verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE));
+        () ->
+            verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE, mockRootCertificate));
     verifyNoInteractions(mockPublisherVerifier);
   }
 

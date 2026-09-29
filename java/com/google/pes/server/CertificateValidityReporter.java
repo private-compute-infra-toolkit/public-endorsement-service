@@ -18,7 +18,7 @@ package com.google.pes.server;
 
 import com.google.common.flogger.FluentLogger;
 import com.google.common.util.concurrent.AbstractScheduledService;
-import com.google.mbs.qualifier.MbsRoot;
+import com.google.mbs.domain.MeasurementBoundCertificateProvider;
 import com.google.pes.domain.metric.Metrics;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -31,18 +31,21 @@ import java.time.Instant;
 public class CertificateValidityReporter extends AbstractScheduledService {
   private static final FluentLogger logger = FluentLogger.forEnclosingClass();
 
-  private final X509Certificate certificate;
+  private final MeasurementBoundCertificateProvider certificateProvider;
   private final Metrics metrics;
 
   @Inject
-  public CertificateValidityReporter(@MbsRoot X509Certificate certificate, Metrics metrics) {
-    this.certificate = certificate;
+  public CertificateValidityReporter(
+      MeasurementBoundCertificateProvider certificateProvider, Metrics metrics) {
+    this.certificateProvider = certificateProvider;
     this.metrics = metrics;
   }
 
   @Override
   protected void runOneIteration() {
     try {
+      X509Certificate certificate =
+          certificateProvider.getActiveTrustPackage().bundles().get(0).getCertificate();
       Instant expiry = certificate.getNotAfter().toInstant();
       Instant now = Instant.now();
       Duration remaining = Duration.between(now, expiry);
@@ -53,6 +56,9 @@ public class CertificateValidityReporter extends AbstractScheduledService {
       metrics.setRootCertificateValidity(remaining);
       logger.atInfo().log(
           "Reported certificate validity metric: %d seconds remaining", remaining.toSeconds());
+    } catch (IllegalStateException e) {
+      logger.atWarning().log(
+          "Certificate not ready yet, skipping certificate validity update: %s", e.getMessage());
     } catch (Exception e) {
       logger.atSevere().withCause(e).log("Failed to update certificate validity metric");
     }
@@ -60,7 +66,9 @@ public class CertificateValidityReporter extends AbstractScheduledService {
 
   @Override
   protected Scheduler scheduler() {
-    // Run immediately, then every 10 minutes
-    return Scheduler.newFixedRateSchedule(Duration.ZERO, Duration.ofMinutes(10));
+    // Stagger startup by 30 seconds to allow CertificateMonitor to complete the initial
+    // load/generation and ensure steady-state reporting runs shortly after periodic 1-minute
+    // reloads.
+    return Scheduler.newFixedRateSchedule(Duration.ofSeconds(30), Duration.ofMinutes(1));
   }
 }

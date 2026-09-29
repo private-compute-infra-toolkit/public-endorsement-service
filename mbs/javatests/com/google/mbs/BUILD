@@ -21,9 +21,8 @@ java_test(
     size = "small",
     srcs = ["KmsMeasurementBoundCertificateProviderTest.java"],
     deps = [
-        "//java/com/google/kmsclient",
         "//java/com/google/mbs:certmanagement",
-        "//java/com/google/mbs/attestationcollection",
+        "//java/com/google/mbs/domain",
         "@maven//:com_google_code_gson_gson",
         "@maven//:com_google_crypto_tink_tink",
         "@maven//:com_google_guava_guava",
@@ -64,6 +63,8 @@ java_test(
         "//java/com/google/mbs:dummy_cert_provider",
         "//java/com/google/mbs:module",
         "//java/com/google/mbs/adapters",
+        "//java/com/google/mbs/adapters/nsm",
+        "//java/com/google/mbs/domain",
         "@maven//:com_google_inject_guice",
         "@maven//:jakarta_inject_jakarta_inject_api",
         "@maven//:junit_junit",
@@ -82,10 +83,10 @@ java_test(
         "requires-network",
     ],
     deps = [
-        "//java/com/google/kmsclient",
         "//java/com/google/mbs:certmanagement",
         "//java/com/google/mbs:module",
-        "//java/com/google/mbs/attestationcollection",
+        "//java/com/google/mbs/domain",
+        "//java/com/google/mbs/dummy",
         "//javatests/com/google/mbs/testing",
         "@maven//:com_google_inject_extensions_guice_testlib",
         "@maven//:com_google_inject_guice",
@@ -100,5 +101,16 @@ java_test(
         "@maven//:software_amazon_awssdk_regions",
         "@maven//:software_amazon_awssdk_s3",
         "@maven//:software_amazon_awssdk_sdk_core",
+    ],
+)
+
+java_test(
+    name = "TrustPackageTest",
+    size = "small",
+    srcs = ["TrustPackageTest.java"],
+    deps = [
+        "//java/com/google/mbs/domain",
+        "@maven//:junit_junit",
+        "@maven//:org_mockito_mockito_core",
     ],
 )

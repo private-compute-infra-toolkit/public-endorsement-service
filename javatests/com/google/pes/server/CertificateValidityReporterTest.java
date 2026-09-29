@@ -47,7 +47,14 @@ public class CertificateValidityReporterTest {
 
   @Before
   public void setUp() {
-    reporter = new CertificateValidityReporter(mockCertificate, mockMetrics);
+    com.google.mbs.domain.MeasurementBoundCertificateProvider provider =
+        () ->
+            new com.google.mbs.domain.TrustPackage(
+                java.util.List.of(
+                    new com.google.mbs.domain.MeasurementBoundCertificate(
+                        mockCertificate, null, null)),
+                java.util.List.of());
+    reporter = new CertificateValidityReporter(provider, mockMetrics);
   }
 
   @Test
@@ -85,5 +92,19 @@ public class CertificateValidityReporterTest {
 
     // Assert
     verify(mockMetrics).setRootCertificateValidity(Duration.ZERO);
+  }
+
+  @Test
+  public void runOneIteration_certificateNotReady_handlesGracefully() {
+    com.google.mbs.domain.MeasurementBoundCertificateProvider unreadyProvider =
+        () -> {
+          throw new IllegalStateException("Certificate has not been initialized yet");
+        };
+    reporter = new CertificateValidityReporter(unreadyProvider, mockMetrics);
+
+    // Should not throw exception
+    reporter.runOneIteration();
+
+    org.mockito.Mockito.verifyNoInteractions(mockMetrics);
   }
 }

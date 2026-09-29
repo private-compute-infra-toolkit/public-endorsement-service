@@ -26,6 +26,7 @@ java_library(
     srcs = [
         "RandomTsaUrlSelector.java",
         "S3TsaConfigProvider.java",
+        "SimpleTsaClient.java",
         "TsaConfigBucketName.java",
         "TsaTrustAnchors.java",
         "TsaUrlSelector.java",
@@ -39,11 +40,15 @@ java_library(
     deps = [
         "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
+        "@com_google_protobuf//:protobuf_java",
         "@maven//:com_fasterxml_jackson_core_jackson_annotations",
         "@maven//:com_fasterxml_jackson_core_jackson_databind",
         "@maven//:com_google_flogger_flogger",
         "@maven//:com_google_guava_guava",
         "@maven//:jakarta_inject_jakarta_inject_api",
+        "@maven//:org_bouncycastle_bcpkix_jdk18on",
+        "@maven//:org_bouncycastle_bcprov_jdk18on",
+        "@maven//:org_bouncycastle_bcutil_jdk18on",
         "@maven//:software_amazon_awssdk_s3",
         "@maven//:software_amazon_awssdk_sdk_core",
     ],

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.11.0 (2026-09-29)
+
+
+### Features
+
+* Add SimpleTsaClient implementation
+* Integrate TSA client under feature flag from config
+* Update submodule MBS to 0.10.0
+* upgrade to MBS 0.9.0 and support dynamic certificate live-reload
+
 ## 0.10.0 (2026-09-17)
 
 

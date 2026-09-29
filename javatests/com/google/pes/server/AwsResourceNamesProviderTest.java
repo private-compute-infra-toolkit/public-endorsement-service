@@ -43,6 +43,7 @@ public class AwsResourceNamesProviderTest {
             .setAccountId("123456789012")
             .setEnvironment("testenv")
             .setDomain("testdomain")
+            .setInstanceId("i-testinstance")
             .build();
     AwsResourceNamesProvider provider = new AwsResourceNamesProvider(args, metadata);
 

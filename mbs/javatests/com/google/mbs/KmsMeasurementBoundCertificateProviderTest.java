@@ -19,10 +19,15 @@ package com.google.mbs;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,11 +39,22 @@ import com.google.crypto.tink.RegistryConfiguration;
 import com.google.crypto.tink.aead.AesGcmKey;
 import com.google.crypto.tink.aead.PredefinedAeadParameters;
 import com.google.crypto.tink.util.SecretBytes;
-import com.google.kmsclient.KmsClientInterface;
-import com.google.kmsclient.KmsException;
-import com.google.kmsclient.KmsGeneratedKey;
-import com.google.mbs.attestationcollection.AttestationCollector;
-import com.google.mbs.attestationcollection.AttestationToken;
+import com.google.mbs.domain.AttestationCollector;
+import com.google.mbs.domain.AttestationToken;
+import com.google.mbs.domain.BundleCorruptedException;
+import com.google.mbs.domain.KeyBackup;
+import com.google.mbs.domain.KeyBackupAccessFailedException;
+import com.google.mbs.domain.KeyBackupIncompleteException;
+import com.google.mbs.domain.KeyBackupNotFoundException;
+import com.google.mbs.domain.KeyBackupPartiallyWrittenException;
+import com.google.mbs.domain.KeyBackupStorage;
+import com.google.mbs.domain.KmsClientInterface;
+import com.google.mbs.domain.KmsException;
+import com.google.mbs.domain.KmsGeneratedKey;
+import com.google.mbs.domain.MeasurementBoundCertificate;
+import com.google.mbs.domain.Metrics;
+import com.google.mbs.domain.StorageAlreadyLockedException;
+import com.google.mbs.domain.TrustPackage;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
@@ -47,13 +63,19 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Date;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
-import javax.security.auth.x500.X500Principal;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.KeyUsage;
 import org.junit.Before;
@@ -72,12 +94,12 @@ public class KmsMeasurementBoundCertificateProviderTest {
   @Mock private AttestationCollector attestationCollector;
   @Mock private Metrics mockMetrics;
 
-  private MeasurementBoundCertificateProvider certificateProvider;
+  private KmsMeasurementBoundCertificateProvider certificateProvider;
   private static final String KMS_KEY_ARN = "test-kms-key-arn";
   private static final byte[] TEST_USER_DATA = "test_userdata".getBytes(StandardCharsets.UTF_8);
 
   @Before
-  public void setUp() {
+  public void setUp() throws Exception {
     MockitoAnnotations.initMocks(this);
     MbsCertificateFactory.CertSignatureSpec spec =
         new MbsCertificateFactory.CertSignatureSpec("RSA", 2048, "SHA256withRSA");
@@ -98,6 +120,82 @@ public class KmsMeasurementBoundCertificateProviderTest {
             attestationCollector,
             certificateFactory,
             mockMetrics);
+
+    certificateProvider.retryBackoff = Duration.ZERO;
+  }
+
+  private MeasurementBoundCertificate activeCertificate() {
+    TrustPackage trustPackage = certificateProvider.getActiveTrustPackage();
+    assertEquals(1, trustPackage.bundles().size());
+    assertTrue(trustPackage.crossSignedCertificates().isEmpty());
+    return trustPackage.bundles().get(0);
+  }
+
+  private void stubEmptyStorage() throws Exception {
+    when(storage.getKeyBackup()).thenThrow(new KeyBackupNotFoundException("Key backup absent"));
+  }
+
+  /** Storage that is pristine until something is written, then serves exactly that. */
+  private void stubStorageServingWhatIsPut() throws Exception {
+    AtomicReference<KeyBackup> stored = new AtomicReference<>();
+    doAnswer(
+            invocation -> {
+              stored.set(invocation.getArgument(0));
+              return null;
+            })
+        .when(storage)
+        .putKeyBackup(any());
+    when(storage.getKeyBackup())
+        .thenAnswer(
+            invocation -> {
+              KeyBackup backup = stored.get();
+              if (backup == null) {
+                throw new KeyBackupNotFoundException("Key backup absent");
+              }
+              return backup;
+            });
+  }
+
+  /** A backup whose private key matches encodedCert, with KMS stubbed to yield its data key. */
+  private KeyBackup consistentBackup(PrivateKey privateKey, byte[] encodedCert, String label)
+      throws Exception {
+    byte[] plaintextDataKey = generateAesKey();
+    byte[] kmsEncryptedDataKey = ("kms-encrypted-" + label).getBytes(StandardCharsets.UTF_8);
+    when(kmsClient.decrypt(kmsEncryptedDataKey, KMS_KEY_ARN)).thenReturn(plaintextDataKey);
+    return new KeyBackup(
+        encodedCert,
+        kmsEncryptedDataKey,
+        encrypt(privateKey.getEncoded(), plaintextDataKey),
+        ("attestation-" + label).getBytes(StandardCharsets.UTF_8));
+  }
+
+  /** Stubs data key generation so the generated backup is also decryptable when read back. */
+  private byte[] stubDataKeyGeneration() throws Exception {
+    byte[] plaintext = generateAesKey();
+    byte[] ciphertext = "generated-data-key".getBytes(StandardCharsets.UTF_8);
+    when(kmsClient.generateDataKey(KMS_KEY_ARN))
+        .thenReturn(
+            KmsGeneratedKey.builder().setPlaintext(plaintext).setCiphertext(ciphertext).build());
+    when(kmsClient.decrypt(ciphertext, KMS_KEY_ARN)).thenReturn(plaintext);
+    return ciphertext;
+  }
+
+  private byte[] stubAttestation(String text) throws Exception {
+    byte[] doc = text.getBytes(StandardCharsets.UTF_8);
+    when(attestationCollector.collectBoundToPubkey(any(), any()))
+        .thenReturn(AttestationToken.fromBytes(doc));
+    return doc;
+  }
+
+  private MbsCertificateFactory.X509CertificateAndPrivateKey generateCertAndKey(String subject)
+      throws Exception {
+    return MbsCertificateFactory.createSelfSignedCertificatesFactory(
+            new MbsCertificateFactory.CertSignatureSpec("RSA", 2048, "SHA256withRSA"),
+            new X500Name(subject),
+            Duration.ofDays(30),
+            Optional.empty(),
+            KeyUsage.keyCertSign)
+        .generate();
   }
 
   @FunctionalInterface
@@ -105,35 +203,22 @@ public class KmsMeasurementBoundCertificateProviderTest {
     byte[] encode(X509Certificate certificate) throws Exception;
   }
 
-  private void runLoadOrGenerateCertificate_loadsFromStorageTest(CertificateEncoder encoder)
+  private void runReloadCertificate_loadsFromStorageTest(CertificateEncoder encoder)
       throws Exception {
-    MbsCertificateFactory.CertSignatureSpec spec =
-        new MbsCertificateFactory.CertSignatureSpec("RSA", 2048, "SHA256withRSA");
     MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey =
-        MbsCertificateFactory.createSelfSignedCertificatesFactory(
-                spec,
-                new X500Name("CN=Test CA"),
-                Duration.ofDays(30),
-                Optional.empty(),
-                KeyUsage.keyCertSign)
-            .generate();
+        generateCertAndKey("CN=Test CA");
     X509Certificate certificate = certAndKey.certificate();
     PrivateKey privateKey = certAndKey.privateKey();
 
-    byte[] plaintextDataKey = generateAesKey();
-    byte[] kmsEncryptedDataKey = "kms-encrypted-data-key".getBytes(StandardCharsets.UTF_8);
-    byte[] aesEncryptedPrivateKey = encrypt(privateKey.getEncoded(), plaintextDataKey);
-    byte[] attestationDocBytes = "attestation-doc".getBytes(StandardCharsets.UTF_8);
+    KeyBackup backup =
+        consistentBackup(privateKey, encoder.encode(certificate), "loaded-from-storage");
+    when(storage.getKeyBackup()).thenReturn(backup);
 
-    when(storage.getCertBytes()).thenReturn(encoder.encode(certificate));
-    when(storage.getKmsEncryptedDataKey()).thenReturn(kmsEncryptedDataKey);
-    when(storage.getAeadEncryptedPrivateKey()).thenReturn(aesEncryptedPrivateKey);
-    when(storage.getAttestationDocBytes()).thenReturn(attestationDocBytes);
-    when(kmsClient.decrypt(kmsEncryptedDataKey, KMS_KEY_ARN)).thenReturn(plaintextDataKey);
-
-    MeasurementBoundCertificate result = certificateProvider.loadOrGenerateCertificate();
+    certificateProvider.reloadCertificate();
+    MeasurementBoundCertificate result = activeCertificate();
 
     assertNotNull(result);
+    assertSame(result, activeCertificate());
     assertEquals(
         certificate.getSubjectX500Principal(), result.getCertificate().getSubjectX500Principal());
     assertArrayEquals(
@@ -141,42 +226,32 @@ public class KmsMeasurementBoundCertificateProviderTest {
         result.getCertificate().getPublicKey().getEncoded());
     assertArrayEquals(privateKey.getEncoded(), result.getPrivateKey().getEncoded());
     assertEquals(
-        Base64.getEncoder().encodeToString(attestationDocBytes),
+        Base64.getEncoder().encodeToString(backup.attestationDocBytes()),
         result.getAttestationToken().getBase64());
     verify(mockMetrics).recordEvent(Metrics.MbsEvent.SUCCESS);
   }
 
   @Test
-  public void loadOrGenerateCertificate_loadsFromStorageDer() throws Exception {
-    runLoadOrGenerateCertificate_loadsFromStorageTest(X509Certificate::getEncoded);
+  public void reloadCertificate_loadsFromStorageDer() throws Exception {
+    runReloadCertificate_loadsFromStorageTest(X509Certificate::getEncoded);
   }
 
   @Test
-  public void loadOrGenerateCertificate_loadsFromStoragePem() throws Exception {
-    runLoadOrGenerateCertificate_loadsFromStorageTest(
-        KmsMeasurementBoundCertificateProvider::toPemBytes);
+  public void reloadCertificate_loadsFromStoragePem() throws Exception {
+    runReloadCertificate_loadsFromStorageTest(KmsMeasurementBoundCertificateProvider::toPemBytes);
   }
 
   @Test
-  public void loadOrGenerateCertificate_generatesAndStores() throws Exception {
-    when(storage.getCertBytes()).thenThrow(new KeyBackupNotFoundException("Cert not found"));
+  public void reloadCertificate_generatesAndStores() throws Exception {
+    stubStorageServingWhatIsPut();
+    byte[] dataKeyCiphertext = stubDataKeyGeneration();
+    byte[] attestationDoc = stubAttestation("Mocked attestation doc");
 
-    byte[] dataKeyPlaintext = generateAesKey();
-    byte[] dataKeyCiphertext = "test-ciphertext-key".getBytes(StandardCharsets.UTF_8);
-    KmsGeneratedKey kmsGeneratedKey =
-        KmsGeneratedKey.builder()
-            .setPlaintext(dataKeyPlaintext)
-            .setCiphertext(dataKeyCiphertext)
-            .build();
-    when(kmsClient.generateDataKey(KMS_KEY_ARN)).thenReturn(kmsGeneratedKey);
-
-    byte[] attestationDoc = "Mocked attestation doc".getBytes(StandardCharsets.UTF_8);
-    AttestationToken token = AttestationToken.fromBytes(attestationDoc);
-    when(attestationCollector.collectBoundToPubkey(any(), any())).thenReturn(token);
-
-    MeasurementBoundCertificate result = certificateProvider.loadOrGenerateCertificate();
+    certificateProvider.reloadCertificate();
+    MeasurementBoundCertificate result = activeCertificate();
 
     assertNotNull(result);
+    assertSame(result, activeCertificate());
     assertNotNull(result.getCertificate());
     assertNotNull(result.getPrivateKey());
     assertEquals("CN=Test CA", result.getCertificate().getSubjectX500Principal().getName());
@@ -191,245 +266,361 @@ public class KmsMeasurementBoundCertificateProviderTest {
     assertEquals(
         result.getCertificate().getPublicKey(), pubkeyBoundToAttestationDocCaptor.getValue());
 
-    verify(storage).putAeadEncryptedPrivateKey(any(byte[].class));
-    verify(storage).putKmsEncryptedDataKey(eq(dataKeyCiphertext));
-    verify(storage)
-        .putCertBytes(
-            eq(KmsMeasurementBoundCertificateProvider.toPemBytes(result.getCertificate())));
-    verify(storage).putAttestationDocBytes(eq(attestationDoc));
+    // Generating is only ever permitted under the lock, and the lock is given back afterwards.
+    verify(storage).acquireLock();
+    ArgumentCaptor<KeyBackup> backupCaptor = ArgumentCaptor.forClass(KeyBackup.class);
+    verify(storage).putKeyBackup(backupCaptor.capture());
+    verify(storage).releaseLock();
+    KeyBackup written = backupCaptor.getValue();
+    assertArrayEquals(
+        KmsMeasurementBoundCertificateProvider.toPemBytes(result.getCertificate()),
+        written.certBytes());
+    assertArrayEquals(dataKeyCiphertext, written.kmsEncryptedDataKey());
+    assertArrayEquals(attestationDoc, written.attestationDocBytes());
+    assertNotNull(written.aeadEncryptedPrivateKey());
     verify(mockMetrics).recordEvent(Metrics.MbsEvent.SUCCESS);
   }
 
   @Test
-  public void loadOrGenerateCertificate_withCustomConfig_generatesCustomCert() throws Exception {
-    Date notBefore = Date.from(Instant.now().minus(Duration.ofDays(1)));
-    Date notAfter = Date.from(Instant.now().plus(Duration.ofDays(30)));
-    int expectedPathLen = 5;
-    boolean[] keyUsage = new boolean[9];
-    keyUsage[0] = true; // digitalSignature
-    keyUsage[5] = true; // keyCertSign
-
-    MbsCertificateFactory customBuilder =
-        () -> {
-          KeyPair keyPair;
-          try {
-            keyPair = generateKeyPair();
-          } catch (Exception e) {
-            throw new RuntimeException(e);
-          }
-          X509Certificate mockCert = mock(X509Certificate.class);
-          X500Principal subjectPrincipal = new X500Principal("CN=Custom Service");
-          X500Principal issuerPrincipal = new X500Principal("CN=Custom Issuer");
-
-          when(mockCert.getSubjectX500Principal()).thenReturn(subjectPrincipal);
-          when(mockCert.getIssuerX500Principal()).thenReturn(issuerPrincipal);
-          when(mockCert.getPublicKey()).thenReturn(keyPair.getPublic());
-          when(mockCert.getNotBefore()).thenReturn(notBefore);
-          when(mockCert.getNotAfter()).thenReturn(notAfter);
-          when(mockCert.getKeyUsage()).thenReturn(keyUsage);
-          when(mockCert.getBasicConstraints()).thenReturn(expectedPathLen); // pathLenConstraint
-
-          try {
-            when(mockCert.getEncoded()).thenReturn("custom-cert-bytes".getBytes());
-          } catch (Exception e) {
-            throw new RuntimeException(e);
-          }
-          return new MbsCertificateFactory.X509CertificateAndPrivateKey(
-              mockCert, keyPair.getPrivate());
-        };
-
-    MeasurementBoundCertificateProvider customProvider =
-        new KmsMeasurementBoundCertificateProvider(
-            kmsClient,
-            storage,
-            KMS_KEY_ARN,
-            TEST_USER_DATA,
-            attestationCollector,
-            customBuilder,
-            mockMetrics);
-
-    when(storage.getCertBytes()).thenThrow(new KeyBackupNotFoundException("Cert not found"));
-
-    byte[] dataKeyPlaintext = generateAesKey();
-    byte[] dataKeyCiphertext = "test-ciphertext-key".getBytes(StandardCharsets.UTF_8);
-    KmsGeneratedKey kmsGeneratedKey =
-        KmsGeneratedKey.builder()
-            .setPlaintext(dataKeyPlaintext)
-            .setCiphertext(dataKeyCiphertext)
-            .build();
-    when(kmsClient.generateDataKey(KMS_KEY_ARN)).thenReturn(kmsGeneratedKey);
-
-    byte[] attestationDoc = "Custom attestation doc".getBytes(StandardCharsets.UTF_8);
-    AttestationToken token = AttestationToken.fromBytes(attestationDoc);
-    when(attestationCollector.collectBoundToPubkey(any(), any())).thenReturn(token);
-
-    MeasurementBoundCertificate result = customProvider.loadOrGenerateCertificate();
-
-    assertNotNull(result);
-    assertEquals("CN=Custom Service", result.getCertificate().getSubjectX500Principal().getName());
-    assertEquals("CN=Custom Issuer", result.getCertificate().getIssuerX500Principal().getName());
-    assertEquals(notBefore, result.getCertificate().getNotBefore());
-    assertEquals(notAfter, result.getCertificate().getNotAfter());
-    assertArrayEquals(keyUsage, result.getCertificate().getKeyUsage());
-    assertEquals(expectedPathLen, result.getCertificate().getBasicConstraints());
-    verify(mockMetrics).recordEvent(Metrics.MbsEvent.SUCCESS);
-  }
-
-  @Test
-  public void loadOrGenerateCertificate_builderThrowsRuntimeException_propagatesWrappedError()
-      throws Exception {
-    MbsCertificateFactory throwingBuilder =
-        () -> {
-          throw new RuntimeException("Simulated builder failure");
-        };
-
-    MeasurementBoundCertificateProvider customProvider =
-        new KmsMeasurementBoundCertificateProvider(
-            kmsClient,
-            storage,
-            KMS_KEY_ARN,
-            TEST_USER_DATA,
-            attestationCollector,
-            throwingBuilder,
-            mockMetrics);
-
-    when(storage.getCertBytes()).thenThrow(new KeyBackupNotFoundException("Cert not found"));
-
-    byte[] dataKeyPlaintext = generateAesKey();
-    byte[] dataKeyCiphertext = "test-ciphertext-key".getBytes(StandardCharsets.UTF_8);
-    KmsGeneratedKey kmsGeneratedKey =
-        KmsGeneratedKey.builder()
-            .setPlaintext(dataKeyPlaintext)
-            .setCiphertext(dataKeyCiphertext)
-            .build();
-    when(kmsClient.generateDataKey(KMS_KEY_ARN)).thenReturn(kmsGeneratedKey);
+  public void reloadCertificate_storageThrowsException_propagatesWrappedError() throws Exception {
+    when(storage.getKeyBackup())
+        .thenThrow(new KeyBackupAccessFailedException("Failed to fetch object"));
 
     assertThrows(
         RuntimeException.class,
         () -> {
-          customProvider.loadOrGenerateCertificate();
+          certificateProvider.reloadCertificate();
         });
-    org.mockito.Mockito.verifyNoInteractions(mockMetrics);
+
+    // A read failure is not a transient backup state, so it must not be retried.
+    verify(storage, times(1)).getKeyBackup();
   }
 
   @Test
-  public void loadOrGenerateCertificate_factoryReturnsNonRsaCert_throwsIllegalArgumentException()
-      throws Exception {
-    MbsCertificateFactory invalidBuilder =
-        () -> {
-          KeyPair keyPair;
-          try {
-            keyPair = generateKeyPair();
-          } catch (Exception e) {
-            throw new RuntimeException(e);
-          }
-          X509Certificate mockCert = mock(X509Certificate.class);
-          PublicKey mockPubKey = mock(PublicKey.class);
-          when(mockPubKey.getAlgorithm()).thenReturn("EC");
-          when(mockCert.getPublicKey()).thenReturn(mockPubKey);
-          try {
-            when(mockCert.getEncoded()).thenReturn("invalid-cert-bytes".getBytes());
-          } catch (Exception e) {
-            throw new RuntimeException(e);
-          }
-          return new MbsCertificateFactory.X509CertificateAndPrivateKey(
-              mockCert, keyPair.getPrivate());
-        };
-
-    MeasurementBoundCertificateProvider customProvider =
-        new KmsMeasurementBoundCertificateProvider(
-            kmsClient,
-            storage,
-            KMS_KEY_ARN,
-            TEST_USER_DATA,
-            attestationCollector,
-            invalidBuilder,
-            mockMetrics);
-
-    // Mock collectBoundToPubkey to throw IllegalArgumentException for non-RSA keys
-    when(attestationCollector.collectBoundToPubkey(any(), any()))
-        .thenThrow(new IllegalArgumentException("Only RSA keys are supported"));
-    when(storage.getCertBytes()).thenThrow(new KeyBackupNotFoundException("Cert not found"));
-
-    byte[] dataKeyPlaintext = generateAesKey();
-    KmsGeneratedKey kmsGeneratedKey =
-        KmsGeneratedKey.builder()
-            .setPlaintext(dataKeyPlaintext)
-            .setCiphertext("test-ciphertext-key".getBytes())
-            .build();
-    when(kmsClient.generateDataKey(KMS_KEY_ARN)).thenReturn(kmsGeneratedKey);
-
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> {
-          customProvider.loadOrGenerateCertificate();
-        });
-    org.mockito.Mockito.verifyNoInteractions(mockMetrics);
-  }
-
-  @Test
-  public void loadOrGenerateCertificate_storageThrowsException_propagatesWrappedError()
-      throws Exception {
-    when(storage.getCertBytes())
-        .thenThrow(new KeyBackupStorageException("Storage connection error"));
-
-    assertThrows(
-        RuntimeException.class,
-        () -> {
-          certificateProvider.loadOrGenerateCertificate();
-        });
-  }
-
-  @Test
-  public void loadOrGenerateCertificate_kmsDecryptFails_reportsKmsOperationFailed()
-      throws Exception {
-    MbsCertificateFactory.CertSignatureSpec spec =
-        new MbsCertificateFactory.CertSignatureSpec("RSA", 2048, "SHA256withRSA");
+  public void reloadCertificate_kmsDecryptFails_reportsKmsOperationFailed() throws Exception {
     MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey =
-        MbsCertificateFactory.createSelfSignedCertificatesFactory(
-                spec,
-                new X500Name("CN=Test CA"),
-                Duration.ofDays(30),
-                Optional.empty(),
-                KeyUsage.keyCertSign)
-            .generate();
-    X509Certificate certificate = certAndKey.certificate();
-    PrivateKey privateKey = certAndKey.privateKey();
-
-    byte[] plaintextDataKey = generateAesKey();
+        generateCertAndKey("CN=Test CA");
     byte[] kmsEncryptedDataKey = "kms-encrypted-data-key".getBytes(StandardCharsets.UTF_8);
-    byte[] aesEncryptedPrivateKey = encrypt(privateKey.getEncoded(), plaintextDataKey);
 
-    // Setup storage to return cert and encrypted keys (so we get to KMS decrypt)
-    when(storage.getCertBytes()).thenReturn(certificate.getEncoded());
-    when(storage.getKmsEncryptedDataKey()).thenReturn(kmsEncryptedDataKey);
-    // Mock KMS decrypt to throw KmsException
+    // A complete backup, so the reload reaches the KMS decrypt during loading.
+    when(storage.getKeyBackup())
+        .thenReturn(
+            new KeyBackup(
+                certAndKey.certificate().getEncoded(),
+                kmsEncryptedDataKey,
+                "unreadable-without-the-data-key".getBytes(StandardCharsets.UTF_8),
+                "attestation-doc".getBytes(StandardCharsets.UTF_8)));
     when(kmsClient.decrypt(kmsEncryptedDataKey, KMS_KEY_ARN))
         .thenThrow(new KmsException("KMS error"));
 
     assertThrows(
         RuntimeException.class,
         () -> {
-          certificateProvider.loadOrGenerateCertificate();
+          certificateProvider.reloadCertificate();
         });
 
     verify(mockMetrics).recordEvent(Metrics.MbsEvent.KMS_OPERATION_FAILED);
   }
 
   @Test
-  public void loadOrGenerateCertificate_kmsGenerateKeyFails_reportsKmsOperationFailed()
-      throws Exception {
-    when(storage.getCertBytes()).thenThrow(new KeyBackupNotFoundException("Cert not found"));
-    // Mock KMS generateDataKey to throw KmsException
+  public void reloadCertificate_generationFails_doesNotReleaseLock() throws Exception {
+    stubEmptyStorage();
     when(kmsClient.generateDataKey(KMS_KEY_ARN)).thenThrow(new KmsException("KMS error"));
 
     assertThrows(
         RuntimeException.class,
         () -> {
-          certificateProvider.loadOrGenerateCertificate();
+          certificateProvider.reloadCertificate();
         });
 
+    // Failing while holding the lock leaves it behind on purpose, for an operator to resolve.
+    verify(storage).acquireLock();
+    verify(storage, never()).releaseLock();
     verify(mockMetrics).recordEvent(Metrics.MbsEvent.KMS_OPERATION_FAILED);
+  }
+
+  @Test
+  public void reloadCertificate_partiallyWrittenUnderLock_abortsAndDoesNotReleaseLock()
+      throws Exception {
+    // Pristine before the lock, half-written after it: the state is unknown, so we must not write
+    // over it. The retry then sees the same half-written backup and gives up holding the lock.
+    when(storage.getKeyBackup())
+        .thenThrow(new KeyBackupNotFoundException("Key backup absent"))
+        .thenThrow(new KeyBackupPartiallyWrittenException("Key backup partially written"));
+
+    RuntimeException thrown =
+        assertThrows(RuntimeException.class, certificateProvider::reloadCertificate);
+
+    assertEquals(KeyBackupPartiallyWrittenException.class, thrown.getCause().getClass());
+    verify(storage, times(1)).acquireLock();
+    verify(storage, never()).releaseLock();
+    verify(storage, never()).putKeyBackup(any());
+    verify(kmsClient, never()).generateDataKey(any());
+  }
+
+  @Test
+  public void reloadCertificate_backupAppearsUnderLock_releasesLockWithoutGenerating()
+      throws Exception {
+    MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey =
+        generateCertAndKey("CN=Test CA");
+    KeyBackup backup =
+        consistentBackup(
+            certAndKey.privateKey(),
+            KmsMeasurementBoundCertificateProvider.toPemBytes(certAndKey.certificate()),
+            "won-the-race");
+
+    // Storage looks pristine before the lock, but another instance published while we took it.
+    when(storage.getKeyBackup())
+        .thenThrow(new KeyBackupNotFoundException("Key backup absent"))
+        .thenReturn(backup);
+
+    certificateProvider.reloadCertificate();
+    MeasurementBoundCertificate result = activeCertificate();
+
+    assertNotNull(result);
+    assertSame(result, activeCertificate());
+    verify(storage).acquireLock();
+    verify(storage).releaseLock();
+    verify(storage, never()).putKeyBackup(any());
+    verify(kmsClient, never()).generateDataKey(any());
+  }
+
+  @Test
+  public void reloadCertificate_alreadyLocked_waitsAndLoadsWinnerCert() throws Exception {
+    MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey =
+        generateCertAndKey("CN=Test CA");
+    KeyBackup backup =
+        consistentBackup(
+            certAndKey.privateKey(),
+            KmsMeasurementBoundCertificateProvider.toPemBytes(certAndKey.certificate()),
+            "winner");
+
+    // Pristine on the first attempt, then the lock holder publishes before the retry reads.
+    when(storage.getKeyBackup())
+        .thenThrow(new KeyBackupNotFoundException("Key backup absent"))
+        .thenReturn(backup);
+    doThrow(new StorageAlreadyLockedException("Generation lock present"))
+        .when(storage)
+        .acquireLock();
+
+    certificateProvider.reloadCertificate();
+    MeasurementBoundCertificate result = activeCertificate();
+
+    assertNotNull(result);
+    assertSame(result, activeCertificate());
+    assertEquals("CN=Test CA", result.getCertificate().getSubjectX500Principal().getName());
+    // This instance lost the race, so it must never generate.
+    verify(kmsClient, never()).generateDataKey(any());
+    verify(storage, never()).putKeyBackup(any());
+    verify(mockMetrics).recordEvent(Metrics.MbsEvent.SUCCESS);
+  }
+
+  @Test
+  public void reloadCertificate_lockHeldOnBothAttempts_reportsWaitingForMbsLock() throws Exception {
+    stubEmptyStorage();
+    doThrow(new StorageAlreadyLockedException("Generation lock present"))
+        .when(storage)
+        .acquireLock();
+
+    RuntimeException thrown =
+        assertThrows(RuntimeException.class, certificateProvider::reloadCertificate);
+
+    assertEquals(StorageAlreadyLockedException.class, thrown.getCause().getClass());
+    verify(mockMetrics).recordEvent(Metrics.MbsEvent.WAITING_FOR_MBS_LOCK);
+    // One lock attempt per reload attempt: the original and the single retry, and no more.
+    verify(storage, times(2)).acquireLock();
+    verify(storage, never()).putKeyBackup(any());
+    verify(mockMetrics, never()).recordEvent(Metrics.MbsEvent.SUCCESS);
+  }
+
+  @Test
+  public void reloadCertificate_updatesCertificateWhenStorageChanges() throws Exception {
+    MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey1 =
+        generateCertAndKey("CN=Test CA 1");
+    KeyBackup first =
+        consistentBackup(certAndKey1.privateKey(), certAndKey1.certificate().getEncoded(), "first");
+    when(storage.getKeyBackup()).thenReturn(first);
+
+    certificateProvider.reloadCertificate();
+    MeasurementBoundCertificate initial = activeCertificate();
+    assertNotNull(initial);
+    assertEquals("CN=Test CA 1", initial.getCertificate().getSubjectX500Principal().getName());
+
+    // Storage is updated with a rotated certificate
+    MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey2 =
+        generateCertAndKey("CN=Test CA 2");
+    KeyBackup second =
+        consistentBackup(
+            certAndKey2.privateKey(), certAndKey2.certificate().getEncoded(), "second");
+    when(storage.getKeyBackup()).thenReturn(second);
+
+    certificateProvider.reloadCertificate();
+    MeasurementBoundCertificate reloaded = activeCertificate();
+    assertNotNull(reloaded);
+    assertEquals("CN=Test CA 2", reloaded.getCertificate().getSubjectX500Principal().getName());
+    assertEquals(
+        "CN=Test CA 2", activeCertificate().getCertificate().getSubjectX500Principal().getName());
+  }
+
+  @Test
+  public void reloadCertificate_failureThrowsAndRetainsActiveCertificate() throws Exception {
+    MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey =
+        generateCertAndKey("CN=Test CA");
+    KeyBackup active =
+        consistentBackup(certAndKey.privateKey(), certAndKey.certificate().getEncoded(), "active");
+    when(storage.getKeyBackup()).thenReturn(active);
+
+    certificateProvider.reloadCertificate();
+    MeasurementBoundCertificate initial = activeCertificate();
+    assertNotNull(initial);
+
+    // Simulate transient storage error during reload
+    when(storage.getKeyBackup())
+        .thenThrow(
+            new KeyBackupAccessFailedException("Failed to fetch object", new RuntimeException()));
+
+    RuntimeException thrown =
+        assertThrows(RuntimeException.class, () -> certificateProvider.reloadCertificate());
+
+    // Storage failures are checked exceptions now, so callers receive them wrapped.
+    assertEquals(KeyBackupAccessFailedException.class, thrown.getCause().getClass());
+    // The previously loaded certificate is still the one served
+    assertSame(initial, activeCertificate());
+  }
+
+  @Test
+  public void getActiveTrustPackage_uninitialized_throwsIllegalStateException() {
+    IllegalStateException ex =
+        assertThrows(
+            IllegalStateException.class, () -> certificateProvider.getActiveTrustPackage());
+    assertEquals("Measurement-bound certificate has not been initialized yet", ex.getMessage());
+  }
+
+  @Test
+  public void reloadCertificate_backupLostArtifacts_reportsCorruptedAndDoesNotGenerate()
+      throws Exception {
+    // Which artifacts are missing is the storage's business now; the provider only has to refuse
+    // to generate over a backup that was once complete.
+    when(storage.getKeyBackup())
+        .thenThrow(new KeyBackupIncompleteException("Key backup incomplete, missing [cert]"));
+
+    RuntimeException thrown =
+        assertThrows(RuntimeException.class, certificateProvider::reloadCertificate);
+
+    assertEquals(KeyBackupIncompleteException.class, thrown.getCause().getClass());
+    verify(mockMetrics).recordEvent(Metrics.MbsEvent.STORED_BACKUP_CORRUPTED);
+    // An incomplete backup is damage, not a publication in flight, so it must not be retried.
+    verify(storage, times(1)).getKeyBackup();
+    verify(storage, never()).acquireLock();
+    verify(storage, never()).putKeyBackup(any());
+    verify(kmsClient, never()).generateDataKey(any());
+  }
+
+  @Test
+  public void reloadCertificate_backupPartiallyWritten_retriesAndLoadsOnceComplete()
+      throws Exception {
+    MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey =
+        generateCertAndKey("CN=Test CA");
+    KeyBackup backup =
+        consistentBackup(certAndKey.privateKey(), certAndKey.certificate().getEncoded(), "settled");
+
+    // A reader can catch a publication in flight; that is transient, not damage.
+    when(storage.getKeyBackup())
+        .thenThrow(new KeyBackupPartiallyWrittenException("Key backup partially written"))
+        .thenReturn(backup);
+
+    certificateProvider.reloadCertificate();
+
+    assertNotNull(activeCertificate());
+    verify(mockMetrics, never()).recordEvent(Metrics.MbsEvent.STORED_BACKUP_CORRUPTED);
+    verify(mockMetrics).recordEvent(Metrics.MbsEvent.SUCCESS);
+    verify(storage, never()).acquireLock();
+  }
+
+  @Test
+  public void reloadCertificate_backupStaysPartiallyWritten_reportsCorruptedAfterRetry()
+      throws Exception {
+    when(storage.getKeyBackup())
+        .thenThrow(new KeyBackupPartiallyWrittenException("Key backup partially written"));
+
+    RuntimeException thrown =
+        assertThrows(RuntimeException.class, certificateProvider::reloadCertificate);
+
+    assertEquals(KeyBackupPartiallyWrittenException.class, thrown.getCause().getClass());
+    // One read per attempt: the original and the single retry, then terminal.
+    verify(storage, times(2)).getKeyBackup();
+    verify(mockMetrics).recordEvent(Metrics.MbsEvent.STORED_BACKUP_CORRUPTED);
+    verify(storage, never()).acquireLock();
+    verify(kmsClient, never()).generateDataKey(any());
+  }
+
+  @Test
+  public void reloadCertificate_concurrentCalls_neverOverlap() throws Exception {
+    MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey =
+        generateCertAndKey("CN=Test CA");
+    KeyBackup backup =
+        consistentBackup(
+            certAndKey.privateKey(), certAndKey.certificate().getEncoded(), "concurrent");
+
+    AtomicInteger inFlight = new AtomicInteger();
+    AtomicInteger peakInFlight = new AtomicInteger();
+    when(storage.getKeyBackup())
+        .thenAnswer(
+            invocation -> {
+              peakInFlight.accumulateAndGet(inFlight.incrementAndGet(), Math::max);
+              // Hold the critical section open long enough that unsynchronised callers overlap.
+              Thread.sleep(20);
+              inFlight.decrementAndGet();
+              return backup;
+            });
+
+    int threadCount = 4;
+    ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+    CyclicBarrier startTogether = new CyclicBarrier(threadCount);
+    List<Future<?>> futures = new ArrayList<>();
+    try {
+      for (int i = 0; i < threadCount; i++) {
+        futures.add(
+            executor.submit(
+                () -> {
+                  startTogether.await();
+                  certificateProvider.reloadCertificate();
+                  return null;
+                }));
+      }
+      for (Future<?> future : futures) {
+        future.get(30, TimeUnit.SECONDS);
+      }
+    } finally {
+      executor.shutdownNow();
+    }
+
+    assertEquals(1, peakInFlight.get());
+    assertNotNull(activeCertificate());
+  }
+
+  @Test
+  public void reloadCertificate_mismatchedPrivateKey_rejectsAndReportsCorrupted() throws Exception {
+    MbsCertificateFactory.X509CertificateAndPrivateKey certAndKeyA =
+        generateCertAndKey("CN=Test CA");
+    KeyPair keyPairB = generateKeyPair();
+
+    KeyBackup backup =
+        consistentBackup(
+            keyPairB.getPrivate(), certAndKeyA.certificate().getEncoded(), "mismatched");
+    when(storage.getKeyBackup()).thenReturn(backup);
+
+    RuntimeException thrown =
+        assertThrows(RuntimeException.class, certificateProvider::reloadCertificate);
+
+    assertEquals(BundleCorruptedException.class, thrown.getCause().getClass());
+    // Contents are interpreted during loading, which never takes the lock.
+    verify(storage, never()).acquireLock();
+    verify(mockMetrics).recordEvent(Metrics.MbsEvent.STORED_BACKUP_CORRUPTED);
+    verify(mockMetrics, never()).recordEvent(Metrics.MbsEvent.SUCCESS);
+    verify(storage, never()).putKeyBackup(any());
+    verify(kmsClient, never()).generateDataKey(any());
+    assertThrows(IllegalStateException.class, certificateProvider::getActiveTrustPackage);
   }
 
   private KeyPair generateKeyPair() throws GeneralSecurityException {

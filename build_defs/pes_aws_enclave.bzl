@@ -50,7 +50,7 @@ def pes_aws_eif_and_ami(
         **kwargs: Additional arguments to pass to the underlying aws_eif_and_ami.
     """
     default_additional_container_tars = [
-        "@pcit_mbs//java/com/google/platform/aws/nsm:nsm_jni_tar",
+        "@pcit_mbs//java/com/google/mbs:nsm_jni_tar",
     ]
 
     default_jvm_options = [

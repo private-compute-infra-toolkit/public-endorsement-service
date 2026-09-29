@@ -329,6 +329,23 @@ public class S3TsaConfigProviderTest {
   }
 
   @Test
+  public void getConfig_whenHttpSchemeInConfig_returnsCorrectConfig() {
+    String json =
+        """
+        {
+          "enabled": true,
+          "tsa_urls": ["http://tsa.example.com/tsa"]
+        }
+        """;
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+
+    TsaConfig config = provider.getConfig();
+
+    assertThat(config.enabled()).isTrue();
+    assertThat(config.tsaUrls()).containsExactly(URI.create("http://tsa.example.com/tsa"));
+  }
+
+  @Test
   public void getConfig_whenEnabledAndUrlsEmpty_returnsDisabledConfig() {
     String json =
         """

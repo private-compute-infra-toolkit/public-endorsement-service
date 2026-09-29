@@ -44,5 +44,6 @@ java_library(
         "@maven//:io_micrometer_micrometer_registry_prometheus",
         "@maven//:jakarta_inject_jakarta_inject_api",
         "@pcit_mbs//java/com/google/mbs:certmanagement",
+        "@pcit_mbs//java/com/google/mbs/domain",
     ],
 )

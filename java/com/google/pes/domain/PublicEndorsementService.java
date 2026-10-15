@@ -30,6 +30,8 @@ import com.google.pes.domain.ports.SignatureVerifier;
 import com.google.pes.domain.ports.TLog;
 import com.google.protobuf.ByteString;
 import jakarta.inject.Inject;
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -70,21 +72,21 @@ public class PublicEndorsementService {
    *
    * @param publicEndorsement Statement and Signature of the endorsement to create.
    * @return The fully created endorsement including its unique name and log receipt and PES
-   *     signature.
+   *     signatures.
    */
   public Endorsement createEndorsement(Endorsement publicEndorsement, CallerIdentity identity) {
     if (publicEndorsement.statement().format() == Statement.Format.FORMAT_UNSPECIFIED) {
       throw new IllegalArgumentException("The statement format has to be specified");
     }
 
-    MeasurementBoundCertificate mbc = certificateProvider.getActiveTrustPackage().bundles().get(0);
+    List<MeasurementBoundCertificate> mbcs = certificateProvider.getActiveTrustPackage().bundles();
 
     VerifiedEndorsement verifiedEndorsement =
         endorsementVerifier.parseAndVerify(
             publicEndorsement.statement(),
             identity,
             publicEndorsement.statementSignature(),
-            mbc.getCertificate());
+            getEarliestCertificateExpiry(mbcs));
 
     signatureVerifier.verify(
         publicEndorsement.statementSignature(), publicEndorsement.statement().serialized());
@@ -105,8 +107,13 @@ public class PublicEndorsementService {
     ByteString dataToSign =
         PreAuthenticationEncoding.calculate(
             publicEndorsement.statement(), publicEndorsement.statementSignature(), tLogReceipt);
-    Signature endorsementSignature =
-        signatureGenerator.generate(dataToSign, mbc.getCertificate(), mbc.getPrivateKey());
+    List<Signature> endorsementSignatures =
+        mbcs.stream()
+            .map(
+                mbc ->
+                    signatureGenerator.generate(
+                        dataToSign, mbc.getCertificate(), mbc.getPrivateKey()))
+            .toList();
 
     metrics.incrementEndorsementCounter(verifiedEndorsement.publisherId());
 
@@ -114,7 +121,14 @@ public class PublicEndorsementService {
         endorsementName,
         publicEndorsement.statement(),
         publicEndorsement.statementSignature(),
-        List.of(endorsementSignature),
+        endorsementSignatures,
         tLogReceipt);
+  }
+
+  private Instant getEarliestCertificateExpiry(List<MeasurementBoundCertificate> mbcs) {
+    return mbcs.stream()
+        .map(mbc -> mbc.getCertificate().getNotAfter().toInstant())
+        .min(Comparator.naturalOrder())
+        .orElseThrow(() -> new IllegalStateException("No active certificates in trust package"));
   }
 }

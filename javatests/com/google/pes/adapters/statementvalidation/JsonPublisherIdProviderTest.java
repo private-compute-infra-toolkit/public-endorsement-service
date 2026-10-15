@@ -240,4 +240,21 @@ public final class JsonPublisherIdProviderTest {
             IllegalArgumentException.class, () -> validator.getValidPublisherId(statementBytes));
     assertThat(e).hasMessageThat().contains("publisher_id cannot be null or empty");
   }
+
+  @Test
+  public void getValidPublisherId_multipleOperatorRolesClaims_throws() throws Exception {
+    String validJson = loadTestData("valid/correct_multiple_claims.json").toStringUtf8();
+    String duplicateOperatorRolesJson =
+        validJson.replace(
+            "\"type\": \"https://github.com/project-oak/oak/blob/main/docs/tr/claim/85483.md\"",
+            "\"type\":"
+                + " \"https://github.com/private-compute-infra-toolkit/public-endorsement-service/blob/main/docs/claims/operator_roles.md\","
+                + " \"annotations\": { \"allowed_operator_roles\": \"dev\" }");
+    ByteString statementBytes = ByteString.copyFromUtf8(duplicateOperatorRolesJson);
+
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class, () -> validator.getValidPublisherId(statementBytes));
+    assertThat(e).hasMessageThat().contains("operator_roles claim");
+  }
 }

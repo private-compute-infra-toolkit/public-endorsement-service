@@ -36,6 +36,10 @@ public class Claim {
   public static final String WORKLOAD_CLAIM_TYPE =
       "https://github.com/private-compute-infra-toolkit/public-endorsement-service/blob/main/docs/claims/workload.md";
   public static final String WORKLOAD_ID_KEY = "workload_id";
+  public static final String OPERATOR_ROLES_CLAIM_TYPE =
+      "https://github.com/private-compute-infra-toolkit/public-endorsement-service/blob/main/docs/claims/operator_roles.md";
+  public static final String ALLOWED_OPERATOR_ROLES_KEY = "allowed_operator_roles";
+  private static final int MAX_ALLOWED_OPERATOR_ROLES_LENGTH = 1024;
 
   private static final Pattern SPIFFE_CHARS = Pattern.compile("^[a-zA-Z0-9._-]+$");
   private static final Pattern DOMAIN_CHARS = Pattern.compile("^[a-z0-9._-]+$");
@@ -55,6 +59,8 @@ public class Claim {
       validatePublisherClaim(annotations);
     } else if (type.equals(WORKLOAD_CLAIM_TYPE)) {
       validateWorkloadClaim(annotations);
+    } else if (type.equals(OPERATOR_ROLES_CLAIM_TYPE)) {
+      validateOperatorRolesClaim(annotations);
     }
 
     this.type = type;
@@ -110,6 +116,35 @@ public class Claim {
     }
     String workloadId = annotations.get(WORKLOAD_ID_KEY);
     validateSpiffePart(workloadId, "workload_id", SPIFFE_CHARS);
+  }
+
+  private void validateOperatorRolesClaim(Map<String, String> annotations) {
+    if (annotations == null || annotations.get(ALLOWED_OPERATOR_ROLES_KEY) == null) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Operator roles claim needs to have annotations object with %s key!",
+              ALLOWED_OPERATOR_ROLES_KEY));
+    }
+    String allowedOperatorRoles = annotations.get(ALLOWED_OPERATOR_ROLES_KEY);
+    if (allowedOperatorRoles.isEmpty()) {
+      throw new IllegalArgumentException("allowed_operator_roles cannot be empty");
+    }
+    if (allowedOperatorRoles.length() > MAX_ALLOWED_OPERATOR_ROLES_LENGTH) {
+      throw new IllegalArgumentException(
+          "allowed_operator_roles must be no longer than "
+              + MAX_ALLOWED_OPERATOR_ROLES_LENGTH
+              + " characters");
+    }
+    if (allowedOperatorRoles.startsWith(" ")
+        || allowedOperatorRoles.endsWith(" ")
+        || allowedOperatorRoles.contains("  ")) {
+      throw new IllegalArgumentException(
+          "allowed_operator_roles must be separated by a single space, with no leading or"
+              + " trailing spaces");
+    }
+    for (String role : allowedOperatorRoles.split(" ", -1)) {
+      validateSpiffePart(role, "operator role", SPIFFE_CHARS);
+    }
   }
 
   public String getType() {

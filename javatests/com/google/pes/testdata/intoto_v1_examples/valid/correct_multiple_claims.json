@@ -29,6 +29,12 @@
         }
       },
       {
+        "type": "https://github.com/private-compute-infra-toolkit/public-endorsement-service/blob/main/docs/claims/operator_roles.md",
+        "annotations": {
+          "allowed_operator_roles": "pa-frontend pa-frontend-staging"
+        }
+      },
+      {
         "type": "https://github.com/project-oak/oak/blob/main/docs/tr/claim/85483.md"
       }
     ]

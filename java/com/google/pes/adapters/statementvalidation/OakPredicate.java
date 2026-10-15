@@ -16,6 +16,8 @@
 
 package com.google.pes.adapters.statementvalidation;
 
+import static com.google.pes.adapters.statementvalidation.Claim.OPERATOR_ROLES_CLAIM_TYPE;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -66,6 +68,13 @@ public class OakPredicate {
     if (claims == null || claims.isEmpty()) {
       throw new IllegalArgumentException(
           "The 'claims' array must be not empty and include exactly one publisher claim");
+    }
+
+    long operatorRolesClaimCount =
+        claims.stream().filter(claim -> OPERATOR_ROLES_CLAIM_TYPE.equals(claim.getType())).count();
+    if (operatorRolesClaimCount > 1) {
+      throw new IllegalArgumentException(
+          "Expected at most one operator_roles claim, but found: " + operatorRolesClaimCount);
     }
 
     this.issuedOn = issuedOn;

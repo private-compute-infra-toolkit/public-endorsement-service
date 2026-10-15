@@ -26,14 +26,13 @@ import com.google.pes.domain.ports.PublisherIdProvider;
 import jakarta.inject.Inject;
 import jakarta.inject.Provider;
 import java.io.IOException;
-import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
 
 /**
- * Verifies endorsement statement validity dates against root certificate, uses {@link
- * PublisherIdProvider} to extract publisher ID, and delegates policy verification to {@link
+ * Verifies endorsement statement validity dates against maximum allowed expiration timestamp, uses
+ * {@link PublisherIdProvider} to extract publisher ID, and delegates policy verification to {@link
  * PublisherVerifier}.
  */
 public class EndorsementVerifier {
@@ -53,13 +52,14 @@ public class EndorsementVerifier {
   }
 
   /**
-   * Verifies the statement validity, expiration date against root certificate, extracts publisher
-   * ID via {@link PublisherIdProvider}, and verifies publisher policy via {@link
+   * Verifies the statement validity, expiration date against {@code maxNotAfter}, extracts
+   * publisher ID via {@link PublisherIdProvider}, and verifies publisher policy via {@link
    * PublisherVerifier}.
    *
    * @param statement The endorsement statement to verify.
    * @param identity The OIDC identity of the client.
    * @param signature The signature object containing verification material.
+   * @param maxNotAfter The maximum allowed expiration timestamp for the endorsement statement.
    * @return The verified endorsement containing extracted valid publisher ID.
    * @throws IllegalArgumentException if statement verification or policy verification fails.
    */
@@ -67,7 +67,7 @@ public class EndorsementVerifier {
       Statement statement,
       CallerIdentity identity,
       StatementSignature signature,
-      X509Certificate rootCertificate) {
+      Instant maxNotAfter) {
     if (statement.format() == Statement.Format.FORMAT_UNSPECIFIED) {
       throw new IllegalArgumentException("The statement format has to be specified");
     }
@@ -82,7 +82,7 @@ public class EndorsementVerifier {
     }
 
     validatePredicateType(inTotoStatement);
-    validateNotAfter(inTotoStatement.getPredicate(), rootCertificate);
+    validateNotAfter(inTotoStatement.getPredicate(), maxNotAfter);
     String publisherId = validatePublisherAndGetPublisherId(statement, identity, signature);
     return new VerifiedEndorsement(publisherId);
   }
@@ -93,7 +93,7 @@ public class EndorsementVerifier {
     }
   }
 
-  private void validateNotAfter(OakPredicate predicate, X509Certificate rootCertificate) {
+  private void validateNotAfter(OakPredicate predicate, Instant maxNotAfter) {
     if (predicate.getValidity() == null) {
       throw new IllegalArgumentException("Failed to resolve predicate validity");
     }
@@ -103,19 +103,14 @@ public class EndorsementVerifier {
       throw new IllegalArgumentException("Failed to resolve predicate validity expiration date");
     }
 
-    if (rootCertificate == null || rootCertificate.getNotAfter() == null) {
-      throw new IllegalArgumentException("Failed to resolve root certificate expiration date");
-    }
-
     Instant endorsementNotAfter = parseInstant(notAfterStr);
-    Instant rootNotAfter = rootCertificate.getNotAfter().toInstant();
 
-    if (endorsementNotAfter.isAfter(rootNotAfter)) {
+    if (endorsementNotAfter.isAfter(maxNotAfter)) {
       throw new IllegalArgumentException(
           String.format(
-              "Endorsement expiration date (%s) cannot be past root certificate expiration date"
-                  + " (%s)",
-              notAfterStr, rootNotAfter));
+              "predicate.validity.notAfter (%s) must be on or before %s, the latest expiration PES"
+                  + " currently allows",
+              notAfterStr, maxNotAfter));
     }
   }
 

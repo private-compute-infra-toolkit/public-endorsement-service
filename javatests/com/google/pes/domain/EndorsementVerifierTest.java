@@ -35,9 +35,7 @@ import com.google.protobuf.ByteString;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.security.cert.X509Certificate;
 import java.time.Instant;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import org.junit.Before;
@@ -56,7 +54,6 @@ public class EndorsementVerifierTest {
 
   @Mock private PublisherIdProvider mockPublisherIdProvider;
   @Mock private PublisherVerifier mockPublisherVerifier;
-  @Mock private X509Certificate mockRootCertificate;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private EndorsementVerifier verifier;
@@ -66,6 +63,7 @@ public class EndorsementVerifierTest {
   private static final String TEST_SUBJECT = "test-subject";
   private static final CallerIdentity TEST_IDENTITY =
       new CallerIdentity(TEST_ISSUER, TEST_SUBJECT, java.util.Set.of("test-audience"));
+  private static final Instant DEFAULT_MAX_NOT_AFTER = Instant.parse("2026-12-31T23:59:59Z");
 
   private static ByteString loadTestData(String filePath) {
     String resourcePath = "/com/google/pes/testdata/intoto_v1_examples/" + filePath;
@@ -97,8 +95,6 @@ public class EndorsementVerifierTest {
   @Before
   public void setUp() {
     when(mockPublisherIdProvider.getValidPublisherId(any())).thenReturn(TEST_PUBLISHER_ID);
-    when(mockRootCertificate.getNotAfter())
-        .thenReturn(Date.from(Instant.parse("2026-12-31T23:59:59Z")));
     verifier =
         new EndorsementVerifier(
             Map.of(Statement.Format.JSON_INTOTO, () -> mockPublisherIdProvider),
@@ -113,7 +109,7 @@ public class EndorsementVerifierTest {
             TEST_ENDORSEMENT.statement(),
             TEST_IDENTITY,
             TEST_ENDORSEMENT.statementSignature(),
-            mockRootCertificate);
+            DEFAULT_MAX_NOT_AFTER);
 
     assertThat(verifiedEndorsement.publisherId()).isEqualTo(TEST_PUBLISHER_ID);
     verify(mockPublisherVerifier)
@@ -128,7 +124,8 @@ public class EndorsementVerifierTest {
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE, mockRootCertificate));
+            verifier.parseAndVerify(
+                statement, TEST_IDENTITY, TEST_SIGNATURE, DEFAULT_MAX_NOT_AFTER));
     verifyNoInteractions(mockPublisherVerifier);
   }
 
@@ -147,14 +144,13 @@ public class EndorsementVerifierTest {
                 inputEndorsement.statement(),
                 TEST_IDENTITY,
                 inputEndorsement.statementSignature(),
-                mockRootCertificate));
+                DEFAULT_MAX_NOT_AFTER));
     verifyNoInteractions(mockPublisherVerifier);
   }
 
   @Test
-  public void parseAndVerify_notAfterExceedsRootCert_throwsIllegalArgumentException() {
-    when(mockRootCertificate.getNotAfter())
-        .thenReturn(Date.from(Instant.parse("2026-08-31T23:59:59Z")));
+  public void parseAndVerify_notAfterExceedsMaxNotAfter_throwsIllegalArgumentException() {
+    Instant earlyMaxNotAfter = Instant.parse("2026-08-31T23:59:59Z");
 
     IllegalArgumentException thrown =
         assertThrows(
@@ -164,23 +160,26 @@ public class EndorsementVerifierTest {
                     TEST_ENDORSEMENT.statement(),
                     TEST_IDENTITY,
                     TEST_ENDORSEMENT.statementSignature(),
-                    mockRootCertificate));
+                    earlyMaxNotAfter));
 
-    assertThat(thrown).hasMessageThat().contains("cannot be past root certificate expiration date");
+    assertThat(thrown)
+        .hasMessageThat()
+        .contains(
+            "predicate.validity.notAfter (2026-09-01T00:00:00Z) must be on or before"
+                + " 2026-08-31T23:59:59Z, the latest expiration PES currently allows");
     verifyNoInteractions(mockPublisherVerifier);
   }
 
   @Test
-  public void parseAndVerify_notAfterBeforeRootCert_success() {
-    when(mockRootCertificate.getNotAfter())
-        .thenReturn(Date.from(Instant.parse("2026-10-31T23:59:59Z")));
+  public void parseAndVerify_notAfterBeforeMaxNotAfter_success() {
+    Instant maxNotAfter = Instant.parse("2026-10-31T23:59:59Z");
 
     VerifiedEndorsement verifiedEndorsement =
         verifier.parseAndVerify(
             TEST_ENDORSEMENT.statement(),
             TEST_IDENTITY,
             TEST_ENDORSEMENT.statementSignature(),
-            mockRootCertificate);
+            maxNotAfter);
 
     assertThat(verifiedEndorsement.publisherId()).isEqualTo(TEST_PUBLISHER_ID);
     verify(mockPublisherVerifier)
@@ -196,7 +195,7 @@ public class EndorsementVerifierTest {
             IllegalArgumentException.class,
             () ->
                 verifier.parseAndVerify(
-                    statement, TEST_IDENTITY, TEST_SIGNATURE, mockRootCertificate));
+                    statement, TEST_IDENTITY, TEST_SIGNATURE, DEFAULT_MAX_NOT_AFTER));
 
     assertThat(thrown).hasMessageThat().contains("Missing required creator property 'validity'");
     verifyNoInteractions(mockPublisherVerifier);
@@ -211,47 +210,9 @@ public class EndorsementVerifierTest {
             IllegalArgumentException.class,
             () ->
                 verifier.parseAndVerify(
-                    statement, TEST_IDENTITY, TEST_SIGNATURE, mockRootCertificate));
+                    statement, TEST_IDENTITY, TEST_SIGNATURE, DEFAULT_MAX_NOT_AFTER));
 
     assertThat(thrown).hasMessageThat().contains("Missing required creator property 'notAfter'");
-    verifyNoInteractions(mockPublisherVerifier);
-  }
-
-  @Test
-  public void parseAndVerify_nullRootCertificate_throwsIllegalArgumentException() {
-    IllegalArgumentException thrown =
-        assertThrows(
-            IllegalArgumentException.class,
-            () ->
-                verifier.parseAndVerify(
-                    TEST_ENDORSEMENT.statement(),
-                    TEST_IDENTITY,
-                    TEST_SIGNATURE,
-                    /* rootCertificate= */ null));
-
-    assertThat(thrown)
-        .hasMessageThat()
-        .contains("Failed to resolve root certificate expiration date");
-    verifyNoInteractions(mockPublisherVerifier);
-  }
-
-  @Test
-  public void parseAndVerify_nullRootCertificateNotAfter_throwsIllegalArgumentException() {
-    when(mockRootCertificate.getNotAfter()).thenReturn(null);
-
-    IllegalArgumentException thrown =
-        assertThrows(
-            IllegalArgumentException.class,
-            () ->
-                verifier.parseAndVerify(
-                    TEST_ENDORSEMENT.statement(),
-                    TEST_IDENTITY,
-                    TEST_SIGNATURE,
-                    mockRootCertificate));
-
-    assertThat(thrown)
-        .hasMessageThat()
-        .contains("Failed to resolve root certificate expiration date");
     verifyNoInteractions(mockPublisherVerifier);
   }
 
@@ -267,7 +228,7 @@ public class EndorsementVerifierTest {
                 TEST_ENDORSEMENT.statement(),
                 TEST_IDENTITY,
                 TEST_ENDORSEMENT.statementSignature(),
-                mockRootCertificate));
+                DEFAULT_MAX_NOT_AFTER));
     verifyNoInteractions(mockPublisherVerifier);
   }
 
@@ -284,7 +245,7 @@ public class EndorsementVerifierTest {
                 TEST_ENDORSEMENT.statement(),
                 TEST_IDENTITY,
                 TEST_ENDORSEMENT.statementSignature(),
-                mockRootCertificate));
+                DEFAULT_MAX_NOT_AFTER));
   }
 
   @Test
@@ -294,7 +255,8 @@ public class EndorsementVerifierTest {
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE, mockRootCertificate));
+            verifier.parseAndVerify(
+                statement, TEST_IDENTITY, TEST_SIGNATURE, DEFAULT_MAX_NOT_AFTER));
     verifyNoInteractions(mockPublisherVerifier);
   }
 

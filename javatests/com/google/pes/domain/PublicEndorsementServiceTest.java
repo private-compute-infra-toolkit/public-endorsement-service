@@ -45,6 +45,8 @@ import com.google.pes.domain.ports.TLogException;
 import com.google.protobuf.ByteString;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import org.junit.Before;
@@ -64,9 +66,14 @@ public class PublicEndorsementServiceTest {
   @Mock private MeasurementBoundCertificateProvider mockCertificateProvider;
   @Mock private X509Certificate mockCertificate;
   @Mock private PrivateKey mockPrivateKey;
+  @Mock private X509Certificate mockSecondCertificate;
+  @Mock private PrivateKey mockSecondPrivateKey;
 
   private PublicEndorsementService publicEndorsementService;
   private MeasurementBoundCertificate testMbc;
+  private static final Instant CERT_EXPIRY = Instant.parse("2026-12-31T23:59:59Z");
+  private static final Instant EARLIER_CERT_EXPIRY = Instant.parse("2026-10-31T23:59:59Z");
+
   Statement STATEMENT =
       new Statement(Statement.Format.JSON_INTOTO, ByteString.copyFromUtf8("statement"));
   StatementSignature STATEMENT_SIGNATURE =
@@ -82,6 +89,7 @@ public class PublicEndorsementServiceTest {
 
   @Before
   public void setUp() {
+    when(mockCertificate.getNotAfter()).thenReturn(Date.from(CERT_EXPIRY));
     testMbc = new MeasurementBoundCertificate(mockCertificate, mockPrivateKey, null);
     when(mockCertificateProvider.getActiveTrustPackage())
         .thenReturn(new TrustPackage(List.of(testMbc), List.of()));
@@ -126,10 +134,55 @@ public class PublicEndorsementServiceTest {
 
     verify(mockCertificateProvider).getActiveTrustPackage();
     verify(mockEndorsementVerifier)
-        .parseAndVerify(
-            eq(STATEMENT), eq(TEST_IDENTITY), eq(STATEMENT_SIGNATURE), eq(mockCertificate));
+        .parseAndVerify(eq(STATEMENT), eq(TEST_IDENTITY), eq(STATEMENT_SIGNATURE), eq(CERT_EXPIRY));
     verify(mockSignatureVerifier).verify(eq(STATEMENT_SIGNATURE), eq(STATEMENT.serialized()));
     verify(mockMetrics).incrementEndorsementCounter(eq("publisherId"));
+  }
+
+  @Test
+  public void createEndorsement_multipleCertificates_verifiesEarliestExpiryAndSignsWithAll() {
+    when(mockSecondCertificate.getNotAfter()).thenReturn(Date.from(EARLIER_CERT_EXPIRY));
+    MeasurementBoundCertificate secondMbc =
+        new MeasurementBoundCertificate(mockSecondCertificate, mockSecondPrivateKey, null);
+    when(mockCertificateProvider.getActiveTrustPackage())
+        .thenReturn(new TrustPackage(List.of(testMbc, secondMbc), List.of()));
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any(), any()))
+        .thenReturn(new VerifiedEndorsement("publisherId"));
+    TLogReceipt tLogReceipt = new TLogReceipt("logId");
+    when(mockTLog.post(any())).thenReturn(tLogReceipt);
+
+    ByteString expectedDataToSign =
+        PreAuthenticationEncoding.calculate(STATEMENT, STATEMENT_SIGNATURE, tLogReceipt);
+    Signature firstSignature =
+        new Signature(
+            ByteString.copyFromUtf8("pes-sig-1"),
+            new VerificationMaterial(
+                ByteString.copyFromUtf8("pes-material-1"),
+                VerificationMaterial.Format.ECDSA_P256_SHA256),
+            Optional.empty());
+    Signature secondSignature =
+        new Signature(
+            ByteString.copyFromUtf8("pes-sig-2"),
+            new VerificationMaterial(
+                ByteString.copyFromUtf8("pes-material-2"),
+                VerificationMaterial.Format.ECDSA_P256_SHA256),
+            Optional.empty());
+    when(mockSignatureGenerator.generate(
+            eq(expectedDataToSign), eq(mockCertificate), eq(mockPrivateKey)))
+        .thenReturn(firstSignature);
+    when(mockSignatureGenerator.generate(
+            eq(expectedDataToSign), eq(mockSecondCertificate), eq(mockSecondPrivateKey)))
+        .thenReturn(secondSignature);
+
+    Endorsement result =
+        publicEndorsementService.createEndorsement(INPUT_ENDORSEMENT, TEST_IDENTITY);
+
+    assertThat(result.endorsementSignatures())
+        .containsExactly(firstSignature, secondSignature)
+        .inOrder();
+    verify(mockEndorsementVerifier)
+        .parseAndVerify(
+            eq(STATEMENT), eq(TEST_IDENTITY), eq(STATEMENT_SIGNATURE), eq(EARLIER_CERT_EXPIRY));
   }
 
   @Test
@@ -194,5 +247,19 @@ public class PublicEndorsementServiceTest {
         PesSignatureException.class,
         () -> publicEndorsementService.createEndorsement(INPUT_ENDORSEMENT, TEST_IDENTITY));
     verifyNoInteractions(mockMetrics);
+  }
+
+  @Test
+  public void createEndorsement_emptyTrustPackage_throwsIllegalStateException() {
+    when(mockCertificateProvider.getActiveTrustPackage())
+        .thenReturn(new TrustPackage(List.of(), List.of()));
+
+    IllegalStateException thrown =
+        assertThrows(
+            IllegalStateException.class,
+            () -> publicEndorsementService.createEndorsement(INPUT_ENDORSEMENT, TEST_IDENTITY));
+
+    assertThat(thrown).hasMessageThat().isEqualTo("No active certificates in trust package");
+    verifyNoInteractions(mockEndorsementVerifier, mockMetrics);
   }
 }

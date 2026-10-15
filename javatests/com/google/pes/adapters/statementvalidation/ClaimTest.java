@@ -232,4 +232,152 @@ public final class ClaimTest {
     assertThat(e).hasMessageThat().contains("workload_id");
     assertThat(e).hasMessageThat().contains("invalid");
   }
+
+  @Test
+  public void constructor_validOperatorRolesClaimSingleRole_succeeds() {
+    Map<String, String> annotations = Map.of("allowed_operator_roles", "pa-frontend");
+    Claim claim = new Claim(Claim.OPERATOR_ROLES_CLAIM_TYPE, annotations);
+    assertThat(claim.getType()).isEqualTo(Claim.OPERATOR_ROLES_CLAIM_TYPE);
+    assertThat(claim.getAnnotations()).isEqualTo(annotations);
+  }
+
+  @Test
+  public void constructor_validOperatorRolesClaimMultipleRoles_succeeds() {
+    Map<String, String> annotations =
+        Map.of("allowed_operator_roles", "dev pa-frontend pa-frontend-staging role_1.0");
+    Claim claim = new Claim(Claim.OPERATOR_ROLES_CLAIM_TYPE, annotations);
+    assertThat(claim.getType()).isEqualTo(Claim.OPERATOR_ROLES_CLAIM_TYPE);
+    assertThat(claim.getAnnotations()).isEqualTo(annotations);
+  }
+
+  @Test
+  public void constructor_validOperatorRolesClaimMaxLength_succeeds() {
+    String maxRoles =
+        String.join(" ", "a".repeat(255), "b".repeat(255), "c".repeat(255), "d".repeat(254), "e");
+    assertThat(maxRoles.length()).isEqualTo(1024);
+    Map<String, String> annotations = Map.of("allowed_operator_roles", maxRoles);
+    Claim claim = new Claim(Claim.OPERATOR_ROLES_CLAIM_TYPE, annotations);
+    assertThat(claim.getAnnotations()).isEqualTo(annotations);
+  }
+
+  @Test
+  public void constructor_operatorRolesClaimMissingAnnotations_throws() {
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class, () -> new Claim(Claim.OPERATOR_ROLES_CLAIM_TYPE, null));
+    assertThat(e).hasMessageThat().contains("Operator roles");
+    assertThat(e).hasMessageThat().contains("annotations");
+  }
+
+  @Test
+  public void constructor_operatorRolesClaimMissingAllowedOperatorRoles_throws() {
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new Claim(Claim.OPERATOR_ROLES_CLAIM_TYPE, Map.of()));
+    assertThat(e).hasMessageThat().contains("allowed_operator_roles");
+  }
+
+  @Test
+  public void constructor_operatorRolesClaimNullAllowedOperatorRoles_throws() {
+    Map<String, String> annotations =
+        java.util.Collections.singletonMap("allowed_operator_roles", null);
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new Claim(Claim.OPERATOR_ROLES_CLAIM_TYPE, annotations));
+    assertThat(e).hasMessageThat().contains("allowed_operator_roles");
+  }
+
+  @Test
+  public void constructor_operatorRolesClaimEmptyAllowedOperatorRoles_throws() {
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new Claim(Claim.OPERATOR_ROLES_CLAIM_TYPE, Map.of("allowed_operator_roles", "")));
+    assertThat(e).hasMessageThat().contains("allowed_operator_roles");
+    assertThat(e).hasMessageThat().contains("empty");
+  }
+
+  @Test
+  public void constructor_operatorRolesClaimTooLong_throws() {
+    String tooLongRoles =
+        String.join(" ", "a".repeat(255), "b".repeat(255), "c".repeat(255), "d".repeat(255), "e");
+    assertThat(tooLongRoles.length()).isEqualTo(1025);
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new Claim(
+                    Claim.OPERATOR_ROLES_CLAIM_TYPE,
+                    Map.of("allowed_operator_roles", tooLongRoles)));
+    assertThat(e).hasMessageThat().contains("allowed_operator_roles");
+    assertThat(e).hasMessageThat().contains("1024");
+  }
+
+  @Test
+  public void constructor_operatorRolesClaimLeadingSpace_throws() {
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new Claim(
+                    Claim.OPERATOR_ROLES_CLAIM_TYPE,
+                    Map.of("allowed_operator_roles", " pa-frontend")));
+    assertThat(e).hasMessageThat().contains("allowed_operator_roles");
+    assertThat(e).hasMessageThat().contains("single space");
+  }
+
+  @Test
+  public void constructor_operatorRolesClaimTrailingSpace_throws() {
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new Claim(
+                    Claim.OPERATOR_ROLES_CLAIM_TYPE,
+                    Map.of("allowed_operator_roles", "pa-frontend ")));
+    assertThat(e).hasMessageThat().contains("allowed_operator_roles");
+    assertThat(e).hasMessageThat().contains("single space");
+  }
+
+  @Test
+  public void constructor_operatorRolesClaimMultipleConsecutiveSpaces_throws() {
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new Claim(
+                    Claim.OPERATOR_ROLES_CLAIM_TYPE,
+                    Map.of("allowed_operator_roles", "pa-frontend  pa-frontend-staging")));
+    assertThat(e).hasMessageThat().contains("allowed_operator_roles");
+    assertThat(e).hasMessageThat().contains("single space");
+  }
+
+  @Test
+  public void constructor_operatorRolesClaimRoleTooLong_throws() {
+    String longRole = "a".repeat(256);
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new Claim(
+                    Claim.OPERATOR_ROLES_CLAIM_TYPE,
+                    Map.of("allowed_operator_roles", "pa-frontend " + longRole)));
+    assertThat(e).hasMessageThat().contains("operator role");
+    assertThat(e).hasMessageThat().contains("255");
+  }
+
+  @Test
+  public void constructor_operatorRolesClaimRoleInvalidChars_throws() {
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new Claim(
+                    Claim.OPERATOR_ROLES_CLAIM_TYPE,
+                    Map.of("allowed_operator_roles", "pa-frontend,pa-frontend-staging")));
+    assertThat(e).hasMessageThat().contains("operator role");
+    assertThat(e).hasMessageThat().contains("invalid");
+  }
 }

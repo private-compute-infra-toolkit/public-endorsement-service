@@ -25,9 +25,9 @@ sources:
       - https://snapshot.debian.org/archive/debian-security/20251104T082943Z
 
 archs:
-  - "amd64"
+  - 'amd64'
 
 packages:
-  - "libc6-dev"
-  - "libstdc++-10-dev"
-  - "base-files"
+  - 'libc6-dev'
+  - 'libstdc++-10-dev'
+  - 'base-files'

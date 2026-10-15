@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-exclude: (?x)^( bazel-(bin|out|testlogs|workspace|pes)/.* |
-  google_internal/integration-tests/testdata/.* |
-  version\.txt |
-  CHANGELOG\.md
-  )$
+exclude:
+  (?x)^( bazel-(bin|out|testlogs|workspace|pes)/.* | google_internal/integration-tests/testdata/.* | version\.txt |
+  CHANGELOG\.md )$
 fail_fast: false
 
 repos:

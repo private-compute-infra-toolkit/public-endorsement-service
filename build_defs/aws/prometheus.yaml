@@ -17,7 +17,7 @@ global:
   scrape_timeout: 10s
 
 scrape_configs:
-  - job_name: "pes"
-    metrics_path: "/metrics"
+  - job_name: 'pes'
+    metrics_path: '/metrics'
     static_configs:
-      - targets: ["127.0.0.1:50051"]
+      - targets: ['127.0.0.1:50051']

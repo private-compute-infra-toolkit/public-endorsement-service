@@ -32,6 +32,7 @@ import io.grpc.ServerInterceptors;
 import io.grpc.health.v1.HealthCheckResponse.ServingStatus;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -65,6 +66,7 @@ public class PesServer {
     this.server =
         Server.builder()
             .http(port)
+            .idleTimeout(Duration.ofSeconds(65))
             .meterRegistry(meterRegistry)
             .service(
                 grpcService,

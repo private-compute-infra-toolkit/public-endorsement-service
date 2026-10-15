@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.12.0 (2026-10-15)
+
+
+### Features
+
+* Add operator_roles claim validation
+* Sign PublicEndorsement with all active certificates
+
+
+### Bug Fixes
+
+* (server) set Armeria idle timeout to 65s to prevent ALB 502s
+* Add prettier config
+
+
+### Documentation
+
+* Add operator_roles claim definition
+
 ## 0.11.0 (2026-09-29)
 
 

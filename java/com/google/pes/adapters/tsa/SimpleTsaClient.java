@@ -42,8 +42,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
-import org.bouncycastle.asn1.cmp.PKIFailureInfo;
-import org.bouncycastle.asn1.cmp.PKIStatus;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.tsp.TSPException;
 import org.bouncycastle.tsp.TimeStampRequest;
@@ -52,7 +50,7 @@ import org.bouncycastle.tsp.TimeStampResponse;
 
 /**
  * Implementation of {@link TsaClient} that requests RFC 3161 timestamp tokens from a TSA endpoint
- * selected via {@link TsaUrlSelector}.
+ * selected via {@link TsaUrlSelector} and verifies responses using {@link TsaTimestampVerifier}.
  */
 @Singleton
 public class SimpleTsaClient implements TsaClient {
@@ -74,11 +72,15 @@ public class SimpleTsaClient implements TsaClient {
 
   private final TsaUrlSelector urlSelector;
   private final HttpClient httpClient;
+  private final TsaTimestampVerifier timestampVerifier;
 
   @Inject
-  public SimpleTsaClient(TsaUrlSelector urlSelector, HttpClient httpClient) {
+  public SimpleTsaClient(
+      TsaUrlSelector urlSelector, HttpClient httpClient, TsaTimestampVerifier timestampVerifier) {
     this.urlSelector = Objects.requireNonNull(urlSelector, "urlSelector cannot be null");
     this.httpClient = Objects.requireNonNull(httpClient, "httpClient cannot be null");
+    this.timestampVerifier =
+        Objects.requireNonNull(timestampVerifier, "timestampVerifier cannot be null");
   }
 
   @Override
@@ -100,7 +102,7 @@ public class SimpleTsaClient implements TsaClient {
             && !"http".equalsIgnoreCase(tsaUri.getScheme()))
         || tsaUri.getHost() == null
         || tsaUri.getHost().isBlank()) {
-      throw new TsaException("TSA URI must use HTTP or HTTPS scheme and specify a host: " + tsaUri);
+      throw new TsaException("TSA URI must use HTTP or HTTPS scheme and specify a host");
     }
 
     try {
@@ -112,13 +114,11 @@ public class SimpleTsaClient implements TsaClient {
       return Optional.of(requestTimeStampToken(tsaUri, NISTObjectIdentifiers.id_sha384, digest));
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException("SHA-384 algorithm not available", e);
-    } catch (TsaException e) {
-      throw e;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new TsaException("Interrupted while obtaining timestamp token from TSA: " + tsaUri, e);
+      throw new TsaException("Interrupted while obtaining timestamp token from TSA", e);
     } catch (IOException e) {
-      throw new TsaException("Failed to obtain timestamp token from TSA: " + tsaUri, e);
+      throw new TsaException("Failed to obtain timestamp token from TSA", e);
     }
   }
 
@@ -136,7 +136,7 @@ public class SimpleTsaClient implements TsaClient {
       throws IOException, InterruptedException {
     TimeStampRequest request = createTimestampRequest(hashAlgorithmOid, digest);
     byte[] responseBytes = sendHttpRequest(tsaUri, request.getEncoded());
-    return parseAndExtractToken(responseBytes, tsaUri);
+    return parseAndVerifyToken(responseBytes, request);
   }
 
   private static TimeStampRequest createTimestampRequest(
@@ -150,7 +150,7 @@ public class SimpleTsaClient implements TsaClient {
 
   private byte[] sendHttpRequest(URI tsaUri, byte[] requestBytes)
       throws IOException, InterruptedException {
-    logger.atFine().log("Sending RFC 3161 timestamp request to: %s", tsaUri);
+    logger.atFine().log("Sending RFC 3161 timestamp request to TSA");
 
     HttpRequest httpRequest;
     try {
@@ -163,7 +163,9 @@ public class SimpleTsaClient implements TsaClient {
               .POST(HttpRequest.BodyPublishers.ofByteArray(requestBytes))
               .build();
     } catch (IllegalArgumentException e) {
-      throw new TsaException("Invalid TSA URI: " + tsaUri, e);
+      // Do not attach IllegalArgumentException as cause because HttpRequest.Builder.uri() includes
+      // the TSA URI in the exception message (b/564818687).
+      throw new TsaException("Invalid TSA URI");
     }
 
     HttpResponse<InputStream> httpResponse =
@@ -174,8 +176,7 @@ public class SimpleTsaClient implements TsaClient {
       if (httpResponse.uri() != null
           && !"https".equalsIgnoreCase(httpResponse.uri().getScheme())
           && !"http".equalsIgnoreCase(httpResponse.uri().getScheme())) {
-        throw new TsaException(
-            "TSA response redirected to non-HTTP/HTTPS URI: " + httpResponse.uri());
+        throw new TsaException("TSA response redirected to non-HTTP/HTTPS URI");
       }
 
       if (httpResponse.statusCode() != 200) {
@@ -193,32 +194,31 @@ public class SimpleTsaClient implements TsaClient {
         } catch (IOException e) {
           bodySnippet = "<failed to read error body: " + e.getMessage() + ">";
         }
+        // Do not include the TSA URI in logs or exception messages (b/564818687).
         throw new TsaException(
             String.format(
-                "TSA server at %s returned HTTP %d: %s",
-                tsaUri, httpResponse.statusCode(), bodySnippet));
+                "TSA server returned HTTP %d: %s", httpResponse.statusCode(), bodySnippet));
       }
 
       Optional<String> contentType = httpResponse.headers().firstValue("Content-Type");
       if (contentType.isEmpty() || !isTimestampReplyContentType(contentType.get())) {
         throw new TsaException(
             String.format(
-                "TSA server at %s returned invalid Content-Type: %s (expected %s)",
-                tsaUri, contentType.orElse("<none>"), TIMESTAMP_REPLY_CONTENT_TYPE));
+                "TSA server returned invalid Content-Type: %s (expected %s)",
+                contentType.orElse("<none>"), TIMESTAMP_REPLY_CONTENT_TYPE));
       }
 
-      responseBytes = readBoundedBody(body, MAX_RESPONSE_BYTES, tsaUri);
+      responseBytes = readBoundedBody(body, MAX_RESPONSE_BYTES);
     }
 
     if (responseBytes.length == 0) {
-      throw new TsaException("Received empty response body from TSA: " + tsaUri);
+      throw new TsaException("Received empty response body from TSA");
     }
 
     return responseBytes;
   }
 
-  private static TimeStampToken parseAndExtractToken(byte[] responseBytes, URI tsaUri)
-      throws IOException {
+  private TimeStampToken parseAndVerifyToken(byte[] responseBytes, TimeStampRequest request) {
     TimeStampResponse tsResponse;
     try {
       tsResponse = new TimeStampResponse(responseBytes);
@@ -226,36 +226,12 @@ public class SimpleTsaClient implements TsaClient {
       // Bouncy Castle's ASN.1 parser can throw unchecked exceptions (e.g.,
       // IllegalArgumentException,
       // ClassCastException) when parsing malformed or truncated DER bytes.
-      throw new TsaException("Malformed RFC 3161 response from TSA: " + tsaUri, e);
+      throw new TsaException("Malformed RFC 3161 response from TSA", e);
     }
 
-    int status = tsResponse.getStatus();
-    if (status != PKIStatus.GRANTED && status != PKIStatus.GRANTED_WITH_MODS) {
-      PKIFailureInfo failInfo = tsResponse.getFailInfo();
-      throw new TsaException(
-          String.format(
-              "TSA at %s rejected timestamp request. Status: %d, statusString: %s, failInfo: %s",
-              tsaUri,
-              status,
-              tsResponse.getStatusString(),
-              failInfo != null ? failInfo.intValue() : "<none>"));
-    }
+    TimeStampToken domainToken = timestampVerifier.extractTokenAndVerify(tsResponse, request);
 
-    org.bouncycastle.tsp.TimeStampToken token = tsResponse.getTimeStampToken();
-    if (token == null) {
-      throw new TsaException(
-          String.format(
-              "TSA response from %s did not contain a timestamp token. Status: %d, info: %s",
-              tsaUri, status, tsResponse.getStatusString()));
-    }
-
-    // TODO: Validation of TimeStampResponse against TimeStampRequest and CMS signature
-    // verification against trusted root certificates.
-    TimeStampToken domainToken = new TimeStampToken(ByteString.copyFrom(token.getEncoded()));
-
-    logger.atFine().log(
-        "Successfully retrieved RFC 3161 timestamp token from %s (genTime: %s)",
-        tsaUri, token.getTimeStampInfo().getGenTime());
+    logger.atFine().log("Successfully retrieved and verified RFC 3161 timestamp token from TSA");
 
     return domainToken;
   }
@@ -274,13 +250,11 @@ public class SimpleTsaClient implements TsaClient {
     return ByteStreams.toByteArray(ByteStreams.limit(in, maxBytes));
   }
 
-  private static byte[] readBoundedBody(InputStream in, int maxBytes, URI tsaUri)
-      throws IOException {
+  private static byte[] readBoundedBody(InputStream in, int maxBytes) throws IOException {
     byte[] bytes = readBytes(in, maxBytes + 1);
     if (bytes.length > maxBytes) {
       throw new TsaException(
-          String.format(
-              "TSA response from %s exceeded maximum allowed size of %d bytes", tsaUri, maxBytes));
+          String.format("TSA response exceeded maximum allowed size of %d bytes", maxBytes));
     }
     return bytes;
   }

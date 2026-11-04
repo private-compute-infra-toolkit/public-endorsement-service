@@ -43,6 +43,8 @@ import com.google.pes.adapters.tsa.RandomTsaUrlSelector;
 import com.google.pes.adapters.tsa.S3TsaConfigProvider;
 import com.google.pes.adapters.tsa.SimpleTsaClient;
 import com.google.pes.adapters.tsa.TsaConfigBucketName;
+import com.google.pes.adapters.tsa.TsaTimestampVerifier;
+import com.google.pes.adapters.tsa.TsaTimestampVerifierImpl;
 import com.google.pes.adapters.tsa.TsaUrlSelector;
 import com.google.pes.annotations.PolicyBucket;
 import com.google.pes.annotations.TLedgerUrl;
@@ -128,6 +130,10 @@ public class PesModuleTest {
     java.net.http.HttpClient httpClient = injector.getInstance(java.net.http.HttpClient.class);
     assertThat(httpClient).isNotNull();
     assertThat(httpClient.connectTimeout()).hasValue(java.time.Duration.ofSeconds(5));
+    assertThat(injector.getInstance(TsaTimestampVerifier.class))
+        .isInstanceOf(TsaTimestampVerifierImpl.class);
+    assertThat(injector.getInstance(TsaTimestampVerifier.class))
+        .isSameInstanceAs(injector.getInstance(TsaTimestampVerifier.class));
     assertThat(injector.getInstance(OidcAudienceValidator.class))
         .isInstanceOf(OidcAudienceValidator.class);
     assertThat(injector.getInstance(com.google.pes.domain.PublicEndorsementService.class))

@@ -23,6 +23,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,12 +48,17 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
+import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.InstantSource;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
@@ -97,12 +103,15 @@ public class SimpleTsaClientTest {
   private static final URI SECONDARY_TSA_URI = URI.create("https://tsa2.example.com/timestamp");
   private static final ByteString SAMPLE_DATA =
       ByteString.copyFromUtf8("test payload data to timestamp");
+  private static final Instant FIXED_NOW = Instant.parse("2026-09-15T12:00:00Z");
 
+  private static X509Certificate tsaCert;
   private static TimeStampTokenGenerator tokenGenerator;
 
   private HttpClient mockHttpClient;
   private HttpResponse<InputStream> mockHttpResponse;
   private TsaUrlSelector mockUrlSelector;
+  private TsaTimestampVerifier timestampVerifier;
 
   @BeforeClass
   public static void setUpClass() throws Exception {
@@ -112,7 +121,6 @@ public class SimpleTsaClientTest {
     kpg.initialize(2048);
     KeyPair tsaKeyPair = kpg.generateKeyPair();
 
-    long now = System.currentTimeMillis();
     X500Name issuer = new X500Name("CN=Test TSA, O=Test Org, C=US");
     SubjectPublicKeyInfo spki =
         SubjectPublicKeyInfo.getInstance(tsaKeyPair.getPublic().getEncoded());
@@ -120,8 +128,8 @@ public class SimpleTsaClientTest {
         new X509v3CertificateBuilder(
             issuer,
             BigInteger.ONE,
-            new Date(now - 10000),
-            new Date(now + 365L * 24 * 3600 * 1000),
+            Date.from(FIXED_NOW.minusSeconds(10)),
+            Date.from(FIXED_NOW.plus(Duration.ofDays(365))),
             issuer,
             spki);
 
@@ -132,7 +140,7 @@ public class SimpleTsaClientTest {
         new JcaContentSignerBuilder("SHA256withRSA")
             .setProvider(bcProvider)
             .build(tsaKeyPair.getPrivate());
-    X509Certificate tsaCert =
+    tsaCert =
         new JcaX509CertificateConverter()
             .setProvider(bcProvider)
             .getCertificate(certBuilder.build(signer));
@@ -162,6 +170,10 @@ public class SimpleTsaClientTest {
     mockHttpClient = mock(HttpClient.class);
     mockHttpResponse = mock(HttpResponse.class);
     mockUrlSelector = mock(TsaUrlSelector.class);
+    timestampVerifier =
+        spy(
+            new TsaTimestampVerifierImpl(
+                InstantSource.fixed(FIXED_NOW), Set.of(new TrustAnchor(tsaCert, null))));
 
     HttpHeaders defaultHeaders =
         HttpHeaders.of(
@@ -172,14 +184,15 @@ public class SimpleTsaClientTest {
   }
 
   private SimpleTsaClient createTestClient() {
-    return new SimpleTsaClient(mockUrlSelector, mockHttpClient);
+    return new SimpleTsaClient(mockUrlSelector, mockHttpClient, timestampVerifier);
   }
 
   private static byte[] generateValidTsaResponse(byte[] requestBytes) throws Exception {
     TimeStampRequest request = new TimeStampRequest(requestBytes);
     TimeStampResponseGenerator respGen =
         new TimeStampResponseGenerator(tokenGenerator, TSPAlgorithms.ALLOWED);
-    TimeStampResponse resp = respGen.generate(request, BigInteger.valueOf(123456), new Date());
+    TimeStampResponse resp =
+        respGen.generate(request, BigInteger.valueOf(123456), Date.from(FIXED_NOW));
     return resp.getEncoded();
   }
 
@@ -277,6 +290,8 @@ public class SimpleTsaClientTest {
         .isEqualTo(md.digest(SAMPLE_DATA.toByteArray()));
 
     verify(mockUrlSelector).selectUrl();
+    verify(timestampVerifier)
+        .extractTokenAndVerify(any(TimeStampResponse.class), any(TimeStampRequest.class));
   }
 
   @Test
@@ -353,12 +368,7 @@ public class SimpleTsaClientTest {
 
     TsaException ex =
         assertThrows(TsaException.class, () -> client.requestTimeStampToken(SAMPLE_DATA));
-    assertThat(ex)
-        .hasMessageThat()
-        .contains(
-            "TSA at https://tsa1.example.com/timestamp rejected timestamp request. Status: 2,"
-                + " statusString: Unsupported hash algorithm, failInfo: "
-                + PKIFailureInfo.badAlg);
+    assertThat(ex).hasMessageThat().contains("Status: 2");
   }
 
   @Test
@@ -389,11 +399,7 @@ public class SimpleTsaClientTest {
 
     TsaException ex =
         assertThrows(TsaException.class, () -> client.requestTimeStampToken(SAMPLE_DATA));
-    assertThat(ex)
-        .hasMessageThat()
-        .contains(
-            "TSA at https://tsa1.example.com/timestamp rejected timestamp request. Status: 2,"
-                + " statusString: null, failInfo: <none>");
+    assertThat(ex).hasMessageThat().contains("Status: 2");
   }
 
   @Test
@@ -412,7 +418,36 @@ public class SimpleTsaClientTest {
 
     TsaException ex =
         assertThrows(TsaException.class, () -> client.requestTimeStampToken(SAMPLE_DATA));
-    assertThat(ex).hasMessageThat().contains("did not contain a timestamp token. Status: 0");
+    assertThat(ex).hasMessageThat().contains("Status: 0");
+  }
+
+  @Test
+  public void requestTimeStampToken_verifierRejectsResponse_throwsTsaException() throws Exception {
+    when(mockUrlSelector.selectUrl()).thenReturn(Optional.of(PRIMARY_TSA_URI));
+    TsaTimestampVerifier failingVerifier = mock(TsaTimestampVerifier.class);
+    when(failingVerifier.extractTokenAndVerify(
+            any(TimeStampResponse.class), any(TimeStampRequest.class)))
+        .thenThrow(new TsaException("Verification failed"));
+    SimpleTsaClient client = new SimpleTsaClient(mockUrlSelector, mockHttpClient, failingVerifier);
+
+    doAnswer(
+            invocation -> {
+              HttpRequest req = invocation.getArgument(0);
+              byte[] reqBytes = extractRequestBody(req);
+              byte[] respBytes = generateValidTsaResponse(reqBytes);
+
+              doReturn(200).when(mockHttpResponse).statusCode();
+              doReturn(new ByteArrayInputStream(respBytes)).when(mockHttpResponse).body();
+              return mockHttpResponse;
+            })
+        .when(mockHttpClient)
+        .send(any(HttpRequest.class), any());
+
+    TsaException ex =
+        assertThrows(TsaException.class, () -> client.requestTimeStampToken(SAMPLE_DATA));
+    assertThat(ex).hasMessageThat().contains("Verification failed");
+    verify(failingVerifier)
+        .extractTokenAndVerify(any(TimeStampResponse.class), any(TimeStampRequest.class));
   }
 
   @Test
@@ -447,6 +482,8 @@ public class SimpleTsaClientTest {
     TsaException ex =
         assertThrows(TsaException.class, () -> client.requestTimeStampToken(SAMPLE_DATA));
     assertThat(ex).hasMessageThat().contains("Internal  Server Error");
+    assertThat(ex).hasMessageThat().doesNotContain(PRIMARY_TSA_URI.toString());
+    assertThat(ex).hasMessageThat().doesNotContain(PRIMARY_TSA_URI.getHost());
   }
 
   @Test
@@ -768,7 +805,14 @@ public class SimpleTsaClientTest {
 
   @Test
   public void constructor_nullArguments_throwsNullPointerException() {
-    assertThrows(NullPointerException.class, () -> new SimpleTsaClient(null, mockHttpClient));
-    assertThrows(NullPointerException.class, () -> new SimpleTsaClient(mockUrlSelector, null));
+    assertThrows(
+        NullPointerException.class,
+        () -> new SimpleTsaClient(null, mockHttpClient, timestampVerifier));
+    assertThrows(
+        NullPointerException.class,
+        () -> new SimpleTsaClient(mockUrlSelector, null, timestampVerifier));
+    assertThrows(
+        NullPointerException.class,
+        () -> new SimpleTsaClient(mockUrlSelector, mockHttpClient, null));
   }
 }

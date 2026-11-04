@@ -27,4 +27,10 @@ public record TsaConfig(boolean enabled, List<URI> tsaUrls) {
   public TsaConfig {
     tsaUrls = tsaUrls != null ? List.copyOf(tsaUrls) : List.of();
   }
+
+  @Override
+  public String toString() {
+    // Redact TSA URLs from string representation so they are not exposed in logs (b/564818687).
+    return "TsaConfig[enabled=" + enabled + ", tsaUrls.size=" + tsaUrls.size() + "]";
+  }
 }

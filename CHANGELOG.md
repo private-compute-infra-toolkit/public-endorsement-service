@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.13.0 (2026-11-04)
+
+
+### Features
+
+* Add RFC 3161 TsaTimestampVerifier
+* Verify TSA responses in SimpleTsaClient
+
 ## 0.12.0 (2026-10-15)
 
 

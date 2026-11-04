@@ -45,6 +45,9 @@ import com.google.pes.adapters.tsa.RandomTsaUrlSelector;
 import com.google.pes.adapters.tsa.S3TsaConfigProvider;
 import com.google.pes.adapters.tsa.SimpleTsaClient;
 import com.google.pes.adapters.tsa.TsaConfigBucketName;
+import com.google.pes.adapters.tsa.TsaTimestampVerifier;
+import com.google.pes.adapters.tsa.TsaTimestampVerifierImpl;
+import com.google.pes.adapters.tsa.TsaTrustAnchors;
 import com.google.pes.adapters.tsa.TsaUrlSelector;
 import com.google.pes.annotations.PolicyBucket;
 import com.google.pes.annotations.TLedgerUrl;
@@ -66,11 +69,13 @@ import jakarta.inject.Singleton;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.security.cert.TrustAnchor;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -131,6 +136,7 @@ public class PesModule extends AbstractModule {
     bind(TsaConfigProvider.class).to(S3TsaConfigProvider.class);
     bind(TsaUrlSelector.class).to(RandomTsaUrlSelector.class);
     bind(TsaClient.class).to(SimpleTsaClient.class);
+    bind(TsaTimestampVerifier.class).to(TsaTimestampVerifierImpl.class);
     bind(Metrics.class).to(SystemMetrics.class);
     bind(com.google.mbs.domain.Metrics.class).to(SystemMetrics.class);
 
@@ -146,6 +152,12 @@ public class PesModule extends AbstractModule {
         .annotatedWith(InstanceId.class)
         .toInstance(
             Objects.requireNonNull(awsInstanceMetadata.instanceId(), "instanceId cannot be null"));
+  }
+
+  @Provides
+  @Singleton
+  Set<TrustAnchor> provideTsaTrustAnchors() {
+    return TsaTrustAnchors.getDefaultTrustAnchors();
   }
 
   @Provides

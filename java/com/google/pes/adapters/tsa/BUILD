@@ -28,6 +28,8 @@ java_library(
         "S3TsaConfigProvider.java",
         "SimpleTsaClient.java",
         "TsaConfigBucketName.java",
+        "TsaTimestampVerifier.java",
+        "TsaTimestampVerifierImpl.java",
         "TsaTrustAnchors.java",
         "TsaUrlSelector.java",
     ],

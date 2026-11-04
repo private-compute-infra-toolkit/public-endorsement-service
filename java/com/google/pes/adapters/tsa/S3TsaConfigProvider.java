@@ -19,6 +19,7 @@ package com.google.pes.adapters.tsa;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.flogger.FluentLogger;
 import com.google.pes.domain.model.TsaConfig;
@@ -28,6 +29,7 @@ import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -120,17 +122,28 @@ public class S3TsaConfigProvider implements TsaConfigProvider {
     }
   }
 
-  private static URI parseAndValidateUri(String urlStr) {
+  @VisibleForTesting
+  static URI parseAndValidateUri(String urlStr) {
     if (urlStr == null) {
       throw new TsaException("TSA URI in configuration cannot be null");
     }
-    URI uri = URI.create(urlStr);
+    URI uri;
+    try {
+      uri = new URI(urlStr);
+    } catch (URISyntaxException e) {
+      // Do not attach URISyntaxException as cause because its message includes the full input URI
+      // string, which must not be logged (b/564818687).
+      throw new TsaException(
+          String.format(
+              "Invalid TSA URI syntax in configuration (%s at index %d)",
+              e.getReason(), e.getIndex()));
+    }
     if (!uri.isAbsolute()
         || uri.getHost() == null
         || uri.getHost().isBlank()
         || (!"https".equalsIgnoreCase(uri.getScheme())
             && !"http".equalsIgnoreCase(uri.getScheme()))) {
-      throw new TsaException("TSA URI must be an absolute HTTP or HTTPS URL: " + uri);
+      throw new TsaException("TSA URI must be an absolute HTTP or HTTPS URL");
     }
     return uri;
   }

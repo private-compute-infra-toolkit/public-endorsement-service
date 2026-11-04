@@ -17,6 +17,7 @@
 package com.google.pes.adapters.tsa;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -24,6 +25,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.pes.domain.model.TsaConfig;
+import com.google.pes.domain.ports.TsaException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URI;
@@ -294,6 +296,21 @@ public class S3TsaConfigProviderTest {
     TsaConfig config = provider.getConfig();
 
     assertThat(config).isEqualTo(TsaConfig.DISABLED);
+  }
+
+  @Test
+  public void parseAndValidateUri_whenSyntaxInvalid_throwsTsaExceptionWithoutUrlOrCause() {
+    TsaException ex =
+        assertThrows(
+            TsaException.class,
+            () ->
+                S3TsaConfigProvider.parseAndValidateUri(
+                    "https://secret-tsa.example.com/tsa?bad query"));
+
+    assertThat(ex).hasMessageThat().contains("Invalid TSA URI syntax in configuration");
+    assertThat(ex).hasMessageThat().contains("at index 38");
+    assertThat(ex).hasMessageThat().doesNotContain("secret-tsa.example.com");
+    assertThat(ex).hasCauseThat().isNull();
   }
 
   @Test

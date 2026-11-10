@@ -32,6 +32,5 @@ java_library(
         "@maven//:com_google_flogger_flogger",
         "@maven//:com_google_guava_guava",
         "@maven//:jakarta_inject_jakarta_inject_api",
-        "@pcit_mbs//java/com/google/mbs:certmanagement",
     ],
 )

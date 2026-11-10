@@ -33,18 +33,21 @@ public final class TrustDomainExtractor {
   /**
    * Extracts the trust domain from the Subject Alternative Name (SAN) of the root certificate.
    *
-   * @throws CertificateParsingException if the certificate cannot be parsed.
-   * @throws IllegalArgumentException if the trust domain cannot be found.
+   * @throws IllegalArgumentException if the certificate cannot be parsed or the trust domain cannot
+   *     be found.
    */
-  public static String extract(X509Certificate rootCertificate)
-      throws CertificateParsingException, java.net.URISyntaxException {
-    Collection<List<?>> sans = rootCertificate.getSubjectAlternativeNames();
-    if (sans != null) {
-      for (List<?> san : sans) {
-        if (isUriSan(san)) {
-          return tryParseTrustDomain(san);
+  public static String extract(X509Certificate rootCertificate) {
+    try {
+      Collection<List<?>> sans = rootCertificate.getSubjectAlternativeNames();
+      if (sans != null) {
+        for (List<?> san : sans) {
+          if (isUriSan(san)) {
+            return tryParseTrustDomain(san);
+          }
         }
       }
+    } catch (CertificateParsingException | java.net.URISyntaxException e) {
+      throw new IllegalArgumentException("Failed to parse root certificate SAN.", e);
     }
     throw new IllegalArgumentException(
         "Root certificate SAN does not contain a valid SPIFFE ID trust domain.");

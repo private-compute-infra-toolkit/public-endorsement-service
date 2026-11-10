@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.pes.adapters.EndorsementMapper;
@@ -87,11 +88,12 @@ public class TLedgerTest {
         Entry.newBuilder()
             .setName("entries/HiMom")
             .setRawEntry(getExpectedRawEntry(testEndorsement))
+            .setKeyId("3")
             .build();
     String dummyJsonResponse = JsonFormat.printer().print(responseEntry);
     when(mockHttpClient.execute(any(HttpPost.class), any(BasicHttpClientResponseHandler.class)))
         .thenReturn(dummyJsonResponse);
-    when(mockCertificateFetcher.fetch()).thenReturn(ByteString.copyFromUtf8("cert"));
+    when(mockCertificateFetcher.fetch(3)).thenReturn(ByteString.copyFromUtf8("cert"));
 
     tLedger.post(testEndorsement);
 
@@ -126,12 +128,13 @@ public class TLedgerTest {
             .setName(receiptId)
             .setSignature(signatureBytes)
             .setRawEntry(rawEntryBytes)
+            .setKeyId("3")
             .build();
     String validJsonResponse = JsonFormat.printer().print(responseEntry);
 
     when(mockHttpClient.execute(any(HttpPost.class), any(BasicHttpClientResponseHandler.class)))
         .thenReturn(validJsonResponse);
-    when(mockCertificateFetcher.fetch()).thenReturn(certBytes);
+    when(mockCertificateFetcher.fetch(3)).thenReturn(certBytes);
 
     TLogReceipt receipt = tLedger.post(testEndorsement);
 
@@ -144,6 +147,89 @@ public class TLedgerTest {
                     signatureBytes,
                     new VerificationMaterial(certBytes, VerificationMaterial.Format.X509_DER))),
             eq(rawEntryBytes));
+  }
+
+  @Test
+  public void post_missingKeyId_fallsBackToKeyZero() throws IOException {
+    ByteString certBytes = ByteString.copyFromUtf8("cert-0");
+    ByteString signatureBytes = ByteString.copyFromUtf8("sig");
+    ByteString rawEntryBytes = getExpectedRawEntry(testEndorsement);
+    Entry responseEntry =
+        Entry.newBuilder()
+            .setName("entries/12345")
+            .setSignature(signatureBytes)
+            .setRawEntry(rawEntryBytes)
+            .build();
+    when(mockHttpClient.execute(any(HttpPost.class), any(BasicHttpClientResponseHandler.class)))
+        .thenReturn(JsonFormat.printer().print(responseEntry));
+    when(mockCertificateFetcher.fetch(0)).thenReturn(certBytes);
+
+    tLedger.post(testEndorsement);
+
+    verify(mockSignatureVerifier)
+        .verify(
+            eq(
+                new StatementSignature(
+                    signatureBytes,
+                    new VerificationMaterial(certBytes, VerificationMaterial.Format.X509_DER))),
+            eq(rawEntryBytes));
+  }
+
+  @Test
+  public void post_maxInt32KeyId_fetchesCertificateForThatEpoch() throws IOException {
+    mockTLedgerResponseWithKeyId("2147483647");
+    when(mockCertificateFetcher.fetch(Integer.MAX_VALUE))
+        .thenReturn(ByteString.copyFromUtf8("cert"));
+
+    tLedger.post(testEndorsement);
+
+    verify(mockCertificateFetcher).fetch(Integer.MAX_VALUE);
+  }
+
+  @Test
+  public void post_invalidKeyId_throwsTLogExceptionWithoutFetchingCertificate() throws IOException {
+    String[] invalidKeyIds = {
+      "a",
+      "-1",
+      "+1",
+      "-0",
+      " 1",
+      "1 ",
+      "0\n1",
+      "00",
+      "007",
+      "\u0661",
+      "2147483648",
+      "9999999999",
+      "x".repeat(100)
+    };
+    for (String keyId : invalidKeyIds) {
+      mockTLedgerResponseWithKeyId(keyId);
+
+      assertThrows("key_id=" + keyId, TLogException.class, () -> tLedger.post(testEndorsement));
+    }
+    verifyNoInteractions(mockCertificateFetcher, mockSignatureVerifier);
+  }
+
+  @Test
+  public void post_certificateFetchFails_propagatesTLogException() throws IOException {
+    Entry responseEntry =
+        Entry.newBuilder()
+            .setName("entries/12345")
+            .setSignature(ByteString.copyFromUtf8("sig"))
+            .setRawEntry(getExpectedRawEntry(testEndorsement))
+            .setKeyId("3")
+            .build();
+    when(mockHttpClient.execute(any(HttpPost.class), any(BasicHttpClientResponseHandler.class)))
+        .thenReturn(JsonFormat.printer().print(responseEntry));
+    TLogException fetchFailure = new TLogException("S3 failure");
+    when(mockCertificateFetcher.fetch(3)).thenThrow(fetchFailure);
+
+    TLogException exception =
+        assertThrows(TLogException.class, () -> tLedger.post(testEndorsement));
+
+    assertThat(exception).isSameInstanceAs(fetchFailure);
+    verifyNoInteractions(mockSignatureVerifier);
   }
 
   @Test
@@ -187,11 +273,12 @@ public class TLedgerTest {
         Entry.newBuilder()
             .setName("entries/HiMom")
             .setRawEntry(getExpectedRawEntry(testEndorsement))
+            .setKeyId("3")
             .build();
     String dummyJsonResponse = JsonFormat.printer().print(responseEntry);
     when(mockHttpClient.execute(any(HttpPost.class), any(BasicHttpClientResponseHandler.class)))
         .thenReturn(dummyJsonResponse);
-    when(mockCertificateFetcher.fetch()).thenReturn(ByteString.copyFromUtf8("cert"));
+    when(mockCertificateFetcher.fetch(3)).thenReturn(ByteString.copyFromUtf8("cert"));
     doThrow(new InvalidSignatureException("Invalid signature"))
         .when(mockSignatureVerifier)
         .verify(any(), any());
@@ -256,6 +343,18 @@ public class TLedgerTest {
     boolean healthy = tLedger.isHealthy();
 
     assertThat(healthy).isFalse();
+  }
+
+  private void mockTLedgerResponseWithKeyId(String keyId) throws IOException {
+    Entry responseEntry =
+        Entry.newBuilder()
+            .setName("entries/12345")
+            .setSignature(ByteString.copyFromUtf8("sig"))
+            .setRawEntry(getExpectedRawEntry(testEndorsement))
+            .setKeyId(keyId)
+            .build();
+    when(mockHttpClient.execute(any(HttpPost.class), any(BasicHttpClientResponseHandler.class)))
+        .thenReturn(JsonFormat.printer().print(responseEntry));
   }
 
   private ByteString getExpectedRawEntry(Endorsement endorsement) {

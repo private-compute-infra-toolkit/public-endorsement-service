@@ -17,7 +17,7 @@
 package com.google.pes.server;
 
 import com.google.common.flogger.FluentLogger;
-import com.google.mbs.domain.MeasurementBoundCertificateProvider;
+import com.google.mbs.domain.TrustPackageProvider;
 import com.google.pes.adapters.tlog.TLedger;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
@@ -42,7 +42,7 @@ public class PesServer {
 
   private final Server server;
   private final HealthManager healthManager;
-  private final MeasurementBoundCertificateProvider certificateProvider;
+  private final TrustPackageProvider certificateProvider;
   private final int port;
 
   public PesServer(
@@ -51,7 +51,7 @@ public class PesServer {
       ServerInterceptor jwtInterceptor,
       TLedger tLedger,
       PrometheusMeterRegistry meterRegistry,
-      MeasurementBoundCertificateProvider certificateProvider) {
+      TrustPackageProvider certificateProvider) {
     this.port = port;
     this.certificateProvider = certificateProvider;
     this.healthManager = new HealthManager(tLedger);
@@ -90,7 +90,7 @@ public class PesServer {
       return false;
     }
     try {
-      return certificateProvider.getActiveTrustPackage().bundles().get(0) != null;
+      return !certificateProvider.getActiveTrustPackage().selfSignedBundles().isEmpty();
     } catch (IllegalStateException e) {
       logger.atFine().log("Healthcheck failed: certificate is not available yet.");
       return false;

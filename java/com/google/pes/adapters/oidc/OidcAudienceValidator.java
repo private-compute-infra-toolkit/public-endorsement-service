@@ -16,8 +16,9 @@
 
 package com.google.pes.adapters.oidc;
 
+import com.google.common.collect.MoreCollectors;
 import com.google.common.flogger.FluentLogger;
-import com.google.mbs.domain.MeasurementBoundCertificateProvider;
+import com.google.mbs.domain.TrustPackageProvider;
 import com.google.pes.domain.CallerIdentity;
 import com.google.pes.domain.JwtAuth;
 import com.google.pes.domain.TrustDomainExtractor;
@@ -27,12 +28,11 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.Locator;
 import jakarta.inject.Inject;
-import java.net.URISyntaxException;
 import java.security.Key;
-import java.security.cert.CertificateParsingException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,13 +43,13 @@ public final class OidcAudienceValidator {
   private static final Pattern AUDIENCE_PATTERN =
       Pattern.compile("^https://([^/]+)(?:/v1/endorsements)?$");
 
-  private final MeasurementBoundCertificateProvider certificateProvider;
+  private final TrustPackageProvider certificateProvider;
   private final AwsInstanceMetadata metadata;
   private final Locator<Key> keyLocator;
 
   @Inject
   public OidcAudienceValidator(
-      MeasurementBoundCertificateProvider certificateProvider,
+      TrustPackageProvider certificateProvider,
       AwsInstanceMetadata metadata,
       @JwtAuth Locator<Key> keyLocator) {
     this.certificateProvider = certificateProvider;
@@ -106,17 +106,21 @@ public final class OidcAudienceValidator {
   }
 
   /**
-   * Resolves the SPIFFE trust domain from the currently active root certificate.
+   * Resolves the SPIFFE trust domain from the currently active root certificates.
    *
-   * @throws IllegalStateException if the root certificate has not been loaded yet.
+   * @throws IllegalStateException if the root certificates have not been loaded yet or do not share
+   *     a single valid trust domain.
    */
   private String resolveTrustDomain() {
     try {
-      return TrustDomainExtractor.extract(
-          certificateProvider.getActiveTrustPackage().bundles().get(0).getCertificate());
-    } catch (CertificateParsingException | URISyntaxException | IllegalArgumentException e) {
+      return certificateProvider.getActiveTrustPackage().selfSignedBundles().stream()
+          .map(bundle -> bundle.bundle().certificate())
+          .map(TrustDomainExtractor::extract)
+          .distinct()
+          .collect(MoreCollectors.onlyElement());
+    } catch (IllegalArgumentException | NoSuchElementException e) {
       throw new IllegalStateException(
-          "Failed to extract trust domain from active root certificate", e);
+          "Active root certificates must share exactly one valid trust domain", e);
     }
   }
 

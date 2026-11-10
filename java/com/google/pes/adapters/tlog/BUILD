@@ -25,7 +25,6 @@ java_library(
     srcs = [
         "TLedger.java",
         "TLedgerCertBucketName.java",
-        "TLedgerCertName.java",
         "TLedgerCertificatFetcher.java",
     ],
     visibility = ["//visibility:public"],

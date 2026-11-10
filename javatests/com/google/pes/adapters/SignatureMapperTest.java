@@ -63,7 +63,7 @@ public class SignatureMapperTest {
             .setVerificationMaterial(
                 VerificationMaterial.newBuilder()
                     .setX509Certificate(X509Der.newBuilder().setDerBytes(CERT_BYTES)))
-            .setTimeStampToken(
+            .addTimeStampToken(
                 com.google.pes.v1.TimeStampToken.newBuilder().setDerBytes(TOKEN_BYTES))
             .build();
 
@@ -107,7 +107,7 @@ public class SignatureMapperTest {
         .isEqualTo(VerificationMaterialCase.X509_CERTIFICATE);
     assertThat(protoSignature.getVerificationMaterial().getX509Certificate().getDerBytes())
         .isEqualTo(CERT_BYTES);
-    assertThat(protoSignature.hasTimeStampToken()).isFalse();
+    assertThat(protoSignature.getTimeStampTokenList()).isEmpty();
   }
 
   @Test
@@ -126,8 +126,8 @@ public class SignatureMapperTest {
         .isEqualTo(VerificationMaterialCase.X509_CERTIFICATE);
     assertThat(protoSignature.getVerificationMaterial().getX509Certificate().getDerBytes())
         .isEqualTo(CERT_BYTES);
-    assertThat(protoSignature.hasTimeStampToken()).isTrue();
-    assertThat(protoSignature.getTimeStampToken().getDerBytes()).isEqualTo(TOKEN_BYTES);
+    assertThat(protoSignature.getTimeStampTokenList()).isNotEmpty();
+    assertThat(protoSignature.getTimeStampToken(0).getDerBytes()).isEqualTo(TOKEN_BYTES);
   }
 
   @Test
@@ -145,6 +145,6 @@ public class SignatureMapperTest {
     assertThat(protoSignature.getSignature()).isEqualTo(SIGNATURE_BYTES);
     assertThat(protoSignature.getVerificationMaterial().getVerificationMaterialCase())
         .isEqualTo(VerificationMaterialCase.VERIFICATIONMATERIAL_NOT_SET);
-    assertThat(protoSignature.hasTimeStampToken()).isFalse();
+    assertThat(protoSignature.getTimeStampTokenList()).isEmpty();
   }
 }

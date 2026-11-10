@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.10.0 (2026-10-07)
+
+
+### Features
+
+* **mbs:** add CertificatesConfig schema for root cert rotations
+
+## 0.9.0 (2026-10-07)
+
+
+### Features
+
+* **pes:** make time_stamp_token repeated in endorsement.proto
+
+## 0.8.0 (2026-09-29)
+
 ## 0.7.0 (2026-09-03)
 
 

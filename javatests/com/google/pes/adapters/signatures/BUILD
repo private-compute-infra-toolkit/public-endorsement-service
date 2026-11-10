@@ -43,7 +43,8 @@ java_test(
         "@maven//:org_bouncycastle_bcpkix_jdk18on",
         "@maven//:org_bouncycastle_bcprov_jdk18on",
         "@maven//:org_mockito_mockito_core",
-        "@pcit_mbs//java/com/google/mbs:certmanagement",
+        "@pcit_mbs//java/com/google/mbs/adapters",
+        "@pcit_mbs//java/com/google/mbs/domain",
     ],
 )
 
@@ -58,7 +59,5 @@ java_test(
         "@maven//:com_google_truth_truth",
         "@maven//:junit_junit",
         "@maven//:org_mockito_mockito_core",
-        "@pcit_mbs//java/com/google/mbs:certmanagement",
-        "@pcit_mbs//java/com/google/mbs/domain",
     ],
 )

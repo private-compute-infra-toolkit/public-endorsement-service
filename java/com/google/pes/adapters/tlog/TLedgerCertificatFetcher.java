@@ -29,27 +29,24 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public class TLedgerCertificatFetcher {
   private final S3Client s3Client;
   private final String certificateBucketName;
-  private final String certificateFileName;
 
   @Inject
-  TLedgerCertificatFetcher(
-      S3Client s3Client,
-      @TLedgerCertBucketName String certificateBucketName,
-      @TLedgerCertName String certificateFileName) {
+  TLedgerCertificatFetcher(S3Client s3Client, @TLedgerCertBucketName String certificateBucketName) {
     this.s3Client = s3Client;
     this.certificateBucketName = certificateBucketName;
-    this.certificateFileName = certificateFileName;
   }
 
-  public ByteString fetch() {
-    try (ResponseInputStream<GetObjectResponse> inputStream = fetchCertFromS3()) {
+  public ByteString fetch(int keyId) {
+    String certificateFileName = "public/" + keyId + "/root_certificate.pem";
+    try (ResponseInputStream<GetObjectResponse> inputStream =
+        fetchCertFromS3(certificateFileName)) {
       return ByteString.readFrom(inputStream);
     } catch (IOException e) {
       throw new TLogException("Failed to read TLedger certificate from S3 response", e);
     }
   }
 
-  private ResponseInputStream<GetObjectResponse> fetchCertFromS3() {
+  private ResponseInputStream<GetObjectResponse> fetchCertFromS3(String certificateFileName) {
     try {
       GetObjectRequest getObjectRequest =
           GetObjectRequest.builder().bucket(certificateBucketName).key(certificateFileName).build();

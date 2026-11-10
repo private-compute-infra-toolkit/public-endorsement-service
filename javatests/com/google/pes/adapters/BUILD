@@ -177,7 +177,7 @@ java_test(
         "@maven//:junit_junit",
         "@maven//:org_bouncycastle_bcprov_jdk18on",
         "@maven//:org_mockito_mockito_core",
-        "@pcit_mbs//java/com/google/mbs:certmanagement",
+        "@pcit_mbs//java/com/google/mbs/adapters",
         "@pcit_mbs//java/com/google/mbs/domain",
     ],
 )

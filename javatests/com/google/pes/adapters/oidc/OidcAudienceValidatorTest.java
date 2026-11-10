@@ -16,20 +16,24 @@
 
 package com.google.pes.adapters.oidc;
 
-import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.google.mbs.MbsCertificateFactory;
+import com.google.mbs.adapters.DefaultSelfSignedCertificateFactory;
 import com.google.mbs.domain.AttestationToken;
-import com.google.mbs.domain.MeasurementBoundCertificate;
-import com.google.mbs.domain.MeasurementBoundCertificateProvider;
+import com.google.mbs.domain.SelfSignedBundle;
+import com.google.mbs.domain.SelfSignedBundleWithEpoch;
+import com.google.mbs.domain.SelfSignedCertificate;
+import com.google.mbs.domain.SelfSignedCertificateFactory;
 import com.google.mbs.domain.TrustPackage;
+import com.google.mbs.domain.TrustPackageProvider;
+import com.google.mbs.domain.ValidityPeriod;
 import com.google.pes.server.AwsInstanceMetadata;
 import io.jsonwebtoken.Locator;
 import java.security.Key;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -55,40 +59,51 @@ public final class OidcAudienceValidatorTest {
           .build();
 
   private Locator<Key> mockKeyLocator;
-  private MeasurementBoundCertificateProvider mockCertificateProvider;
+  private TrustPackageProvider mockCertificateProvider;
   private OidcAudienceValidator validator;
 
   @Before
   @SuppressWarnings("unchecked")
   public void setUp() throws Exception {
     mockKeyLocator = (Locator<Key>) mock(Locator.class);
-    mockCertificateProvider = mock(MeasurementBoundCertificateProvider.class);
+    mockCertificateProvider = mock(TrustPackageProvider.class);
     when(mockCertificateProvider.getActiveTrustPackage())
         .thenReturn(rootCertificateWithTrustDomain(TRUST_DOMAIN));
     validator = new OidcAudienceValidator(mockCertificateProvider, METADATA, mockKeyLocator);
   }
 
-  /** Builds a trust package whose root certificate carries the SPIFFE URI SAN for the domain. */
-  private static TrustPackage rootCertificateWithTrustDomain(String trustDomain) {
+  /** Builds a trust package whose root certificates carry the SPIFFE URI SANs for the domains. */
+  private static TrustPackage rootCertificateWithTrustDomain(String... trustDomains) {
+    return new TrustPackage(
+        java.util.Arrays.stream(trustDomains)
+            .map(OidcAudienceValidatorTest::bundleWithTrustDomain)
+            .map(bundle -> new SelfSignedBundleWithEpoch(0, bundle))
+            .toList(),
+        List.of());
+  }
+
+  private static SelfSignedBundle bundleWithTrustDomain(String trustDomain) {
     GeneralNames san =
         new GeneralNames(
             new GeneralName(
                 GeneralName.uniformResourceIdentifier, "spiffe://" + trustDomain + "/workload"));
-    MbsCertificateFactory.X509CertificateAndPrivateKey generated =
-        MbsCertificateFactory.createSelfSignedCertificatesFactory(
-                new MbsCertificateFactory.CertSignatureSpec("RSA", 2048, "SHA256withRSA"),
-                new X500Name("C=US, O=Google LLC, CN=PES"),
-                Duration.ofDays(1),
-                Optional.of(san),
-                KeyUsage.digitalSignature)
-            .generate();
-    return new TrustPackage(
-        List.of(
-            new MeasurementBoundCertificate(
-                generated.certificate(),
-                generated.privateKey(),
-                AttestationToken.fromBytes("token".getBytes()))),
-        List.of());
+    DefaultSelfSignedCertificateFactory factory =
+        new DefaultSelfSignedCertificateFactory(
+            new DefaultSelfSignedCertificateFactory.CertSignatureSpec("RSA", 2048, "SHA256withRSA"),
+            new X500Name("C=US, O=Google LLC, CN=PES"),
+            Optional.of(san),
+            KeyUsage.digitalSignature);
+    SelfSignedCertificateFactory.X509CertificateAndPrivateKey generated =
+        factory.generate(
+            new SelfSignedCertificate(
+                0,
+                new ValidityPeriod(
+                    Instant.now().minus(Duration.ofDays(1)),
+                    Instant.now().plus(Duration.ofDays(1)))));
+    return new SelfSignedBundle(
+        generated.certificate(),
+        generated.privateKey(),
+        AttestationToken.fromBytes("token".getBytes()));
   }
 
   @Test
@@ -202,12 +217,25 @@ public final class OidcAudienceValidatorTest {
         .thenReturn(rootCertificateWithTrustDomain("invalid-no-pes-prefix.local"));
 
     String audience = "https://pes.pcit.local/v1/endorsements";
-    IllegalStateException thrown =
-        assertThrows(
-            IllegalStateException.class, () -> validator.validateAudience(Set.of(audience)));
-    assertThat(thrown)
-        .hasMessageThat()
-        .contains("Failed to extract trust domain from active root certificate");
+    assertThrows(IllegalStateException.class, () -> validator.validateAudience(Set.of(audience)));
+  }
+
+  @Test
+  public void validateAudience_mismatchedCertificateTrustDomains_throwsIllegalStateException() {
+    when(mockCertificateProvider.getActiveTrustPackage())
+        .thenReturn(rootCertificateWithTrustDomain("pes.pcit.local", "pes.other.local"));
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> validator.validateAudience(Set.of("https://pes.pcit.local/v1/endorsements")));
+  }
+
+  @Test
+  public void validateAudience_multipleMatchingCertificateTrustDomains_succeeds() {
+    when(mockCertificateProvider.getActiveTrustPackage())
+        .thenReturn(rootCertificateWithTrustDomain("pes.pcit.local", "pes.pcit.local"));
+
+    validator.validateAudience(Set.of("https://pes.pcit.local/v1/endorsements"));
   }
 
   @Test

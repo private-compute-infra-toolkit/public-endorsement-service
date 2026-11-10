@@ -18,25 +18,24 @@ package com.google.pes.server;
 
 import com.google.common.flogger.FluentLogger;
 import com.google.common.util.concurrent.AbstractScheduledService;
-import com.google.mbs.domain.MeasurementBoundCertificateProvider;
+import com.google.mbs.domain.TrustPackageProvider;
 import com.google.pes.domain.metric.Metrics;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
 
 /** Reports the validity of the root PES certificate to the Metrics system. */
 @Singleton
 public class CertificateValidityReporter extends AbstractScheduledService {
   private static final FluentLogger logger = FluentLogger.forEnclosingClass();
 
-  private final MeasurementBoundCertificateProvider certificateProvider;
+  private final TrustPackageProvider certificateProvider;
   private final Metrics metrics;
 
   @Inject
-  public CertificateValidityReporter(
-      MeasurementBoundCertificateProvider certificateProvider, Metrics metrics) {
+  public CertificateValidityReporter(TrustPackageProvider certificateProvider, Metrics metrics) {
     this.certificateProvider = certificateProvider;
     this.metrics = metrics;
   }
@@ -44,9 +43,12 @@ public class CertificateValidityReporter extends AbstractScheduledService {
   @Override
   protected void runOneIteration() {
     try {
-      X509Certificate certificate =
-          certificateProvider.getActiveTrustPackage().bundles().get(0).getCertificate();
-      Instant expiry = certificate.getNotAfter().toInstant();
+      Instant expiry =
+          certificateProvider.getActiveTrustPackage().selfSignedBundles().stream()
+              .map(bundle -> bundle.bundle().certificate().getNotAfter().toInstant())
+              .min(Comparator.naturalOrder())
+              .orElseThrow(
+                  () -> new IllegalStateException("No active certificates in trust package"));
       Instant now = Instant.now();
       Duration remaining = Duration.between(now, expiry);
       // Ensure we don't report negative validity if it's expired

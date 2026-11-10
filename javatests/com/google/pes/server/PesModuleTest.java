@@ -24,10 +24,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Key;
-import com.google.mbs.MbsCertificateFactory;
 import com.google.mbs.domain.CertificateMonitor;
-import com.google.mbs.domain.MeasurementBoundCertificateProvider;
-import com.google.mbs.domain.MeasurementBoundCertificateReloader;
+import com.google.mbs.domain.CertificatesConfigProvider;
+import com.google.mbs.domain.SelfSignedCertificate;
+import com.google.mbs.domain.SelfSignedCertificateFactory;
+import com.google.mbs.domain.TrustPackageProvider;
+import com.google.mbs.domain.TrustPackageReloader;
+import com.google.mbs.domain.ValidityPeriod;
 import com.google.mbs.qualifier.InstanceId;
 import com.google.mbs.qualifier.KmsKeyArn;
 import com.google.mbs.qualifier.PrivateBackupBucket;
@@ -58,12 +61,15 @@ import com.google.pes.domain.ports.TsaClient;
 import com.google.pes.domain.ports.TsaConfigProvider;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.bouncycastle.asn1.ASN1OctetString;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -272,7 +278,7 @@ public class PesModuleTest {
   }
 
   @Test
-  public void configure_bindsMeasurementBoundCertificateProvider() {
+  public void configure_bindsTrustPackageProvider() throws Exception {
     PesArgs args = new PesArgs();
     JCommander.newBuilder()
         .addObject(args)
@@ -296,19 +302,19 @@ public class PesModuleTest {
             .with(new com.google.mbs.dummy.DummyMbsModule());
     Injector injector = Guice.createInjector(testModule);
 
-    MeasurementBoundCertificateProvider provider =
-        injector.getInstance(MeasurementBoundCertificateProvider.class);
-    MeasurementBoundCertificateReloader reloader =
-        injector.getInstance(MeasurementBoundCertificateReloader.class);
+    TrustPackageProvider provider = injector.getInstance(TrustPackageProvider.class);
+    TrustPackageReloader reloader = injector.getInstance(TrustPackageReloader.class);
     assertThat(provider).isNotNull();
     assertThat(reloader).isNotNull();
 
     assertThrows(IllegalStateException.class, provider::getActiveTrustPackage);
 
-    reloader.reloadCertificate();
-    assertThat(provider.getActiveTrustPackage().bundles().get(0)).isNotNull();
-    assertThat(provider.getActiveTrustPackage().bundles().get(0).getCertificate()).isNotNull();
-    assertThat(provider.getActiveTrustPackage().bundles().get(0).getPrivateKey()).isNotNull();
+    reloader.reload(injector.getInstance(CertificatesConfigProvider.class).getCertificatesConfig());
+    assertThat(provider.getActiveTrustPackage().selfSignedBundles().get(0)).isNotNull();
+    assertThat(provider.getActiveTrustPackage().selfSignedBundles().get(0).bundle().certificate())
+        .isNotNull();
+    assertThat(provider.getActiveTrustPackage().selfSignedBundles().get(0).bundle().privateKey())
+        .isNotNull();
   }
 
   @Test
@@ -373,8 +379,8 @@ public class PesModuleTest {
         .isNotNull();
     assertThat(kmsInjector.getInstance(com.google.mbs.domain.Metrics.class))
         .isInstanceOf(SystemMetrics.class);
-    assertThat(kmsInjector.getInstance(MeasurementBoundCertificateProvider.class)).isNotNull();
-    assertThat(kmsInjector.getInstance(MeasurementBoundCertificateReloader.class)).isNotNull();
+    assertThat(kmsInjector.getInstance(TrustPackageProvider.class)).isNotNull();
+    assertThat(kmsInjector.getInstance(TrustPackageReloader.class)).isNotNull();
     assertThat(kmsInjector.getInstance(CertificateMonitor.class)).isNotNull();
   }
 
@@ -401,10 +407,24 @@ public class PesModuleTest {
             .build();
 
     PesModule module = new PesModule(args, metadata);
-    MbsCertificateFactory factory = module.provideMbsCertificateFactory();
-    X509Certificate rootCert = factory.generate().certificate();
+    SelfSignedCertificateFactory factory = module.provideSelfSignedCertificateFactory();
+    X509Certificate rootCert =
+        factory
+            .generate(
+                new SelfSignedCertificate(
+                    0,
+                    new ValidityPeriod(
+                        Instant.now().minus(Duration.ofDays(1)),
+                        Instant.now().plus(Duration.ofDays(1)))))
+            .certificate();
 
-    assertThat(rootCert.getSubjectX500Principal().getName()).isEqualTo("CN=PES,O=Google LLC,C=US");
+    assertThat(rootCert.getSubjectX500Principal().getName())
+        .isEqualTo("CN=PES G0,O=Google LLC,C=US");
+    assertThat(
+            KeyUsage.getInstance(
+                ASN1OctetString.getInstance(rootCert.getExtensionValue(Extension.keyUsage.getId()))
+                    .getOctets()))
+        .isEqualTo(new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyCertSign));
 
     String expectedSpiffeId =
         "spiffe://pes.testenv.testdomain/operator/pcit.goog/123456789012/publisher/google.com/pcit-release-bot/workload/public-endorsement-service";
@@ -443,8 +463,16 @@ public class PesModuleTest {
             .build();
 
     PesModule module = new PesModule(args, metadata);
-    MbsCertificateFactory factory = module.provideMbsCertificateFactory();
-    X509Certificate rootCert = factory.generate().certificate();
+    SelfSignedCertificateFactory factory = module.provideSelfSignedCertificateFactory();
+    X509Certificate rootCert =
+        factory
+            .generate(
+                new SelfSignedCertificate(
+                    0,
+                    new ValidityPeriod(
+                        Instant.now().minus(Duration.ofDays(1)),
+                        Instant.now().plus(Duration.ofDays(1)))))
+            .certificate();
 
     String expectedSpiffeId =
         "spiffe://pes.pcit.goog/operator/pcit.goog/123456789012/publisher/google.com/pcit-release-bot/workload/public-endorsement-service";

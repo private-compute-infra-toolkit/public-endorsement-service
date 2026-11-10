@@ -22,7 +22,7 @@ import com.google.common.flogger.FluentLogger;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.mbs.domain.CertificateMonitor;
-import com.google.mbs.domain.MeasurementBoundCertificateProvider;
+import com.google.mbs.domain.TrustPackageProvider;
 import com.google.pes.adapters.tlog.TLedger;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
@@ -64,8 +64,7 @@ public class ServerMain {
     CertificateMonitor certMonitor = injector.getInstance(CertificateMonitor.class);
     certMonitor.start();
 
-    MeasurementBoundCertificateProvider certProvider =
-        injector.getInstance(MeasurementBoundCertificateProvider.class);
+    TrustPackageProvider certProvider = injector.getInstance(TrustPackageProvider.class);
 
     int port = 50051;
     PesServer pesServer =

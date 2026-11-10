@@ -17,8 +17,9 @@
 package com.google.pes.domain;
 
 import com.google.common.flogger.FluentLogger;
-import com.google.mbs.domain.MeasurementBoundCertificate;
-import com.google.mbs.domain.MeasurementBoundCertificateProvider;
+import com.google.mbs.domain.SelfSignedBundle;
+import com.google.mbs.domain.SelfSignedBundleWithEpoch;
+import com.google.mbs.domain.TrustPackageProvider;
 import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.Endorsement;
 import com.google.pes.domain.model.Signature;
@@ -48,7 +49,7 @@ public class PublicEndorsementService {
   private final EndorsementVerifier endorsementVerifier;
   private final SignatureGenerator signatureGenerator;
   private final SignatureVerifier signatureVerifier;
-  private final MeasurementBoundCertificateProvider certificateProvider;
+  private final TrustPackageProvider certificateProvider;
   private final Metrics metrics;
 
   @Inject
@@ -57,7 +58,7 @@ public class PublicEndorsementService {
       EndorsementVerifier endorsementVerifier,
       SignatureGenerator signatureGenerator,
       SignatureVerifier signatureVerifier,
-      MeasurementBoundCertificateProvider certificateProvider,
+      TrustPackageProvider certificateProvider,
       Metrics metrics) {
     this.tLog = tLog;
     this.endorsementVerifier = endorsementVerifier;
@@ -79,14 +80,17 @@ public class PublicEndorsementService {
       throw new IllegalArgumentException("The statement format has to be specified");
     }
 
-    List<MeasurementBoundCertificate> mbcs = certificateProvider.getActiveTrustPackage().bundles();
+    List<SelfSignedBundle> bundles =
+        certificateProvider.getActiveTrustPackage().selfSignedBundles().stream()
+            .map(SelfSignedBundleWithEpoch::bundle)
+            .toList();
 
     VerifiedEndorsement verifiedEndorsement =
         endorsementVerifier.parseAndVerify(
             publicEndorsement.statement(),
             identity,
             publicEndorsement.statementSignature(),
-            getEarliestCertificateExpiry(mbcs));
+            getEarliestCertificateExpiry(bundles));
 
     signatureVerifier.verify(
         publicEndorsement.statementSignature(), publicEndorsement.statement().serialized());
@@ -108,11 +112,11 @@ public class PublicEndorsementService {
         PreAuthenticationEncoding.calculate(
             publicEndorsement.statement(), publicEndorsement.statementSignature(), tLogReceipt);
     List<Signature> endorsementSignatures =
-        mbcs.stream()
+        bundles.stream()
             .map(
-                mbc ->
+                bundle ->
                     signatureGenerator.generate(
-                        dataToSign, mbc.getCertificate(), mbc.getPrivateKey()))
+                        dataToSign, bundle.certificate(), bundle.privateKey()))
             .toList();
 
     metrics.incrementEndorsementCounter(verifiedEndorsement.publisherId());
@@ -125,9 +129,9 @@ public class PublicEndorsementService {
         tLogReceipt);
   }
 
-  private Instant getEarliestCertificateExpiry(List<MeasurementBoundCertificate> mbcs) {
-    return mbcs.stream()
-        .map(mbc -> mbc.getCertificate().getNotAfter().toInstant())
+  private Instant getEarliestCertificateExpiry(List<SelfSignedBundle> bundles) {
+    return bundles.stream()
+        .map(bundle -> bundle.certificate().getNotAfter().toInstant())
         .min(Comparator.naturalOrder())
         .orElseThrow(() -> new IllegalStateException("No active certificates in trust package"));
   }

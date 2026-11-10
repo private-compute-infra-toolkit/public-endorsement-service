@@ -27,8 +27,8 @@ public final class SignatureMapper {
 
   public static Signature toDomain(com.google.pes.v1.Signature proto) {
     Optional<TimeStampToken> timeStampToken =
-        proto.hasTimeStampToken()
-            ? Optional.of(new TimeStampToken(proto.getTimeStampToken().getDerBytes()))
+        proto.getTimeStampTokenCount() > 0
+            ? Optional.of(new TimeStampToken(proto.getTimeStampToken(0).getDerBytes()))
             : Optional.empty();
 
     return new Signature(
@@ -47,7 +47,7 @@ public final class SignatureMapper {
     domain
         .timeStampToken()
         .map(token -> com.google.pes.v1.TimeStampToken.newBuilder().setDerBytes(token.derBytes()))
-        .ifPresent(builder::setTimeStampToken);
+        .ifPresent(builder::addTimeStampToken);
 
     return builder.build();
   }

@@ -21,6 +21,7 @@ import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -110,5 +111,15 @@ public class TrustDomainExtractorTest {
     when(mockCert.getSubjectAlternativeNames()).thenReturn(sans);
 
     assertThrows(IllegalArgumentException.class, () -> TrustDomainExtractor.extract(mockCert));
+  }
+
+  @Test
+  public void extract_certificateParsingException_throwsException() throws Exception {
+    CertificateParsingException cause = new CertificateParsingException("parse error");
+    when(mockCert.getSubjectAlternativeNames()).thenThrow(cause);
+
+    IllegalArgumentException thrown =
+        assertThrows(IllegalArgumentException.class, () -> TrustDomainExtractor.extract(mockCert));
+    assertThat(thrown).hasCauseThat().isSameInstanceAs(cause);
   }
 }

@@ -16,17 +16,27 @@
 
 package com.google.mbs.dummy;
 
+import com.google.mbs.domain.CrossSignedCertificateId;
 import com.google.mbs.domain.Metrics;
+import java.util.Set;
 
 /** A no-op implementation of {@link Metrics}. */
 public final class NoOpMetrics implements Metrics {
   @Override
-  public void recordEvent(MbsEvent event) {
-    // No-op
-  }
+  public void recordEvent(MbsEvent event) {}
 
   @Override
-  public void setReloadStatus(ReloadStatus status) {
-    // No-op
-  }
+  public void recordGenerationEvent(GenerationEvent event) {}
+
+  @Override
+  public void recordLoadEvent(LoadEvent event) {}
+
+  @Override
+  public void recordConfigEvent(ConfigEvent event) {}
+
+  @Override
+  public void recordActiveSelfSignedCertificates(Set<Integer> epochIds) {}
+
+  @Override
+  public void recordActiveCrossSignedCertificates(Set<CrossSignedCertificateId> certificateIds) {}
 }

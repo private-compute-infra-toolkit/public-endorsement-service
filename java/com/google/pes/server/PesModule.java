@@ -18,13 +18,15 @@ package com.google.pes.server;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableList;
 import com.google.common.flogger.FluentLogger;
 import com.google.gson.Gson;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.multibindings.MapBinder;
-import com.google.mbs.MbsCertificateFactory;
 import com.google.mbs.MbsModule;
+import com.google.mbs.adapters.DefaultSelfSignedCertificateFactory;
+import com.google.mbs.domain.SelfSignedCertificateFactory;
 import com.google.mbs.qualifier.AttestationUserData;
 import com.google.mbs.qualifier.InstanceId;
 import com.google.mbs.qualifier.KmsKeyArn;
@@ -40,7 +42,6 @@ import com.google.pes.adapters.signatures.SignatureVerifierImpl;
 import com.google.pes.adapters.statementvalidation.JsonPublisherIdProvider;
 import com.google.pes.adapters.tlog.TLedger;
 import com.google.pes.adapters.tlog.TLedgerCertBucketName;
-import com.google.pes.adapters.tlog.TLedgerCertName;
 import com.google.pes.adapters.tsa.RandomTsaUrlSelector;
 import com.google.pes.adapters.tsa.S3TsaConfigProvider;
 import com.google.pes.adapters.tsa.SimpleTsaClient;
@@ -71,7 +72,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.cert.TrustAnchor;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Objects;
 import java.util.Optional;
@@ -90,6 +90,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 /** A Guice module for configuring bindings for the Public Endorsement Service. */
 public class PesModule extends AbstractModule {
   private static final FluentLogger logger = FluentLogger.forEnclosingClass();
+  private static final ImmutableList<String> ALLOWED_METER_PREFIXES =
+      ImmutableList.of("pes.", "armeria.server.connections");
 
   private final PesArgs pesArgs;
   private final AwsInstanceMetadata awsInstanceMetadata;
@@ -115,9 +117,6 @@ public class PesModule extends AbstractModule {
     bind(String.class)
         .annotatedWith(TLedgerCertBucketName.class)
         .toInstance(awsResourceNames.tledgerCertBucketName());
-    bind(String.class)
-        .annotatedWith(TLedgerCertName.class)
-        .toInstance("public/0/root_certificate.pem");
     bind(String.class)
         .annotatedWith(TsaConfigBucketName.class)
         .toInstance(awsResourceNames.tsaConfigBucketName());
@@ -170,7 +169,7 @@ public class PesModule extends AbstractModule {
 
   @Provides
   @Singleton
-  MbsCertificateFactory provideMbsCertificateFactory() {
+  SelfSignedCertificateFactory provideSelfSignedCertificateFactory() {
     String env = awsInstanceMetadata.environment();
     String domain = awsInstanceMetadata.domain();
     String operatorRole = awsInstanceMetadata.accountId();
@@ -183,16 +182,11 @@ public class PesModule extends AbstractModule {
     Optional<GeneralNames> san = Optional.of(new GeneralNames(uriSan));
     logger.atInfo().log("Setting root certificate Subject Alternative Name (SAN): %s", spiffeId);
 
-    return MbsCertificateFactory.createSelfSignedCertificatesFactory(
-        new MbsCertificateFactory.CertSignatureSpec("RSA", 4096, "SHA256withRSA"),
+    return new DefaultSelfSignedCertificateFactory(
+        new DefaultSelfSignedCertificateFactory.CertSignatureSpec("RSA", 4096, "SHA256withRSA"),
         new X500Name("C=US, O=Google LLC, CN=PES"),
-        // The notAfter of TCA and Tledger is set to 2027-02-02 (14:00 CET): deadline for
-        // initial PCIT root certs.
-        // Because PES root cert's notAfter must be later than endorsement's notAfter,
-        // set PES root cert expiration to 2027-03-02 (14:00 CET).
-        Duration.between(Instant.now(), Instant.parse("2027-03-02T13:00:00Z")),
         san,
-        KeyUsage.digitalSignature);
+        KeyUsage.digitalSignature | KeyUsage.keyCertSign);
   }
 
   @Provides
@@ -254,9 +248,9 @@ public class PesModule extends AbstractModule {
     PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
     registry
         .config()
-        .meterFilter(MeterFilter.acceptNameStartsWith("pes."))
-        .meterFilter(MeterFilter.acceptNameStartsWith("armeria.server.connections"))
-        .meterFilter(MeterFilter.deny());
+        .meterFilter(
+            MeterFilter.denyUnless(
+                id -> ALLOWED_METER_PREFIXES.stream().anyMatch(id.getName()::startsWith)));
     return registry;
   }
 

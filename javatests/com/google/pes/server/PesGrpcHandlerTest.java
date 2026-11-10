@@ -99,14 +99,16 @@ public class PesGrpcHandlerTest {
 
     meterRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
 
-    com.google.mbs.domain.MeasurementBoundCertificateProvider certProvider =
+    com.google.mbs.domain.TrustPackageProvider certProvider =
         () ->
             new com.google.mbs.domain.TrustPackage(
                 java.util.List.of(
-                    new com.google.mbs.domain.MeasurementBoundCertificate(
-                        org.mockito.Mockito.mock(java.security.cert.X509Certificate.class),
-                        null,
-                        null)),
+                    new com.google.mbs.domain.SelfSignedBundleWithEpoch(
+                        0,
+                        new com.google.mbs.domain.SelfSignedBundle(
+                            org.mockito.Mockito.mock(java.security.cert.X509Certificate.class),
+                            org.mockito.Mockito.mock(java.security.PrivateKey.class),
+                            com.google.mbs.domain.AttestationToken.fromBytes("token".getBytes())))),
                 java.util.List.of());
     pesServer =
         new PesServer(
@@ -329,7 +331,7 @@ public class PesGrpcHandlerTest {
 
   @Test
   public void healthCheck_whenCertificateNotAvailableYet_returnsServiceUnavailable() {
-    com.google.mbs.domain.MeasurementBoundCertificateProvider uninitializedProvider =
+    com.google.mbs.domain.TrustPackageProvider uninitializedProvider =
         () -> {
           throw new IllegalStateException("Certificate is not loaded yet");
         };

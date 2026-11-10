@@ -2,6 +2,73 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.15.0 (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* TrustPackage.selfSignedBundles() returns
+List<SelfSignedBundleWithEpoch>; use bundle() to get the
+SelfSignedBundle.
+
+
+### Features
+
+* expose epoch ID of self-signed bundles in TrustPackage
+
+
+### Bug Fixes
+
+* Reuse unchanged cross-signed certs on reload
+
+
+### Documentation
+
+* Create agent-focused documentation on certs rotation testing
+
+## 0.14.0 (2026-10-30)
+
+
+### Features
+
+* add CrossSignedCertificateBackupGenerator
+* generate cross-signed certs in DefaultCertificateGenerator
+* preserve order in TrustPackageService defined by config
+* record active self-signed and cross-signed certificate metrics
+* suffix self-signed certificate CN with epoch ID
+* verify cross-signed certs against linked self-signed bundles
+
+## 0.13.0 (2026-10-26)
+
+
+### Features
+
+* protect root cert and attestation document backups from tampering
+
+## 0.12.0 (2026-10-20)
+
+
+### Features
+
+* add S3 backup storage support for cross-signed certs
+* Generate self-signed certificates from CertificatesConfig
+* Load active certificates from CertificatesConfig in TrustPackage
+* load active cross-signed certificates into TrustPackage
+
+## 0.11.0 (2026-10-12)
+
+
+### Features
+
+* Add CertificatesConfig proto, domain models, and mapper
+* Add S3 bucket listing for key backup storage
+* Add S3 configuration provider for certificates rotation
+* Decouple generation, load, and config metrics
+* If backup has not changed, do not issue KMS operations
+* Prohibit cross-certificates to the same key epoch
+* Replace stateful storage refresh with StorageSnapshot
+* Use validity from config when generating root certificate
+
 ## 0.10.0 (2026-09-28)
 
 

@@ -39,11 +39,11 @@ java_library(
         "@com_google_protobuf//:protobuf_java",
         "@com_google_protobuf//java/util",
         "@maven//:com_google_flogger_flogger",
+        "@maven//:com_google_guava_guava",
         "@maven//:com_google_protobuf_protobuf_java",
         "@maven//:io_micrometer_micrometer_core",
         "@maven//:io_micrometer_micrometer_registry_prometheus",
         "@maven//:jakarta_inject_jakarta_inject_api",
-        "@pcit_mbs//java/com/google/mbs:certmanagement",
         "@pcit_mbs//java/com/google/mbs/domain",
     ],
 )

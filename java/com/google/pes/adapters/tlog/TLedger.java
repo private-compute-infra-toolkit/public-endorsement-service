@@ -16,6 +16,8 @@
 
 package com.google.pes.adapters.tlog;
 
+import static java.util.concurrent.TimeUnit.MINUTES;
+
 import com.google.common.flogger.FluentLogger;
 import com.google.pes.adapters.EndorsementMapper;
 import com.google.pes.annotations.TLedgerUrl;
@@ -54,6 +56,8 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 public class TLedger implements TLog {
   private static final FluentLogger logger = FluentLogger.forEnclosingClass();
   private static final String TLEDGER_POST_SUFIX = "/v1/entries";
+  // TODO(b/556649493): Remove once all deployed TLedgers populate key_id.
+  private static final int DEFAULT_KEY_ID = 0;
 
   private final String tLedgerUrl;
   private final JsonFormat.Printer jsonPrinter = JsonFormat.printer();
@@ -143,7 +147,8 @@ public class TLedger implements TLog {
   }
 
   private void verifyTLedgerSignature(Entry entry) {
-    ByteString certificateBytes = certificatFetcher.fetch();
+    int keyId = parseKeyId(entry);
+    ByteString certificateBytes = certificatFetcher.fetch(keyId);
     try {
       signatureVerifier.verify(
           new StatementSignature(
@@ -154,6 +159,30 @@ public class TLedger implements TLog {
       throw new TLogException(
           "Failed to verify TLedger signature for entry: " + entry.getName(), e);
     }
+  }
+
+  // key_id is not covered by the signature, so it is only a hint: any key whose certificate is in
+  // the TLedger bucket can be selected.
+  private static int parseKeyId(Entry entry) {
+    String keyId = entry.getKeyId();
+    if (keyId.isEmpty()) {
+      logger.atWarning().atMostEvery(1, MINUTES).log(
+          "TLedger entry has no key_id, falling back to key %d", DEFAULT_KEY_ID);
+      return DEFAULT_KEY_ID;
+    }
+    int id;
+    try {
+      id = Integer.parseInt(keyId);
+    } catch (NumberFormatException e) {
+      throw new TLogException(String.format("Invalid TLedger key id: '%.32s'", keyId), e);
+    }
+    // parseInt also accepts forms like "+1", "007" or non-ASCII digits; only the canonical decimal
+    // form maps 1:1 to the certificate's S3 key.
+    if (id < 0 || !Integer.toString(id).equals(keyId)) {
+      throw new TLogException(
+          String.format("Invalid or negative TLedger key id not supported: '%.32s'", keyId));
+    }
+    return id;
   }
 
   private ByteString formatRawEntry(Endorsement publicEndorsement) {

@@ -20,3 +20,5 @@ google_internal/integration-tests/infrastructure/.terraform
 google_internal/integration-tests/AMI_ID
 google_internal/integration-tests/TEST_ID
 google_internal/integration-tests/artifact-creation
+
+google_internal/agent_tests/test_results/

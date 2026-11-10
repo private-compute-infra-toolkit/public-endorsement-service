@@ -17,14 +17,22 @@
 package com.google.pes.server;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.mbs.domain.AttestationToken;
+import com.google.mbs.domain.SelfSignedBundle;
+import com.google.mbs.domain.SelfSignedBundleWithEpoch;
+import com.google.mbs.domain.TrustPackage;
+import com.google.mbs.domain.TrustPackageProvider;
 import com.google.pes.domain.metric.Metrics;
+import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -47,13 +55,17 @@ public class CertificateValidityReporterTest {
 
   @Before
   public void setUp() {
-    com.google.mbs.domain.MeasurementBoundCertificateProvider provider =
+    TrustPackageProvider provider =
         () ->
-            new com.google.mbs.domain.TrustPackage(
-                java.util.List.of(
-                    new com.google.mbs.domain.MeasurementBoundCertificate(
-                        mockCertificate, null, null)),
-                java.util.List.of());
+            new TrustPackage(
+                List.of(
+                    new SelfSignedBundleWithEpoch(
+                        0,
+                        new SelfSignedBundle(
+                            mockCertificate,
+                            mock(PrivateKey.class),
+                            AttestationToken.fromBytes("token".getBytes())))),
+                List.of());
     reporter = new CertificateValidityReporter(provider, mockMetrics);
   }
 
@@ -96,7 +108,7 @@ public class CertificateValidityReporterTest {
 
   @Test
   public void runOneIteration_certificateNotReady_handlesGracefully() {
-    com.google.mbs.domain.MeasurementBoundCertificateProvider unreadyProvider =
+    TrustPackageProvider unreadyProvider =
         () -> {
           throw new IllegalStateException("Certificate has not been initialized yet");
         };
@@ -106,5 +118,34 @@ public class CertificateValidityReporterTest {
     reporter.runOneIteration();
 
     org.mockito.Mockito.verifyNoInteractions(mockMetrics);
+  }
+
+  @Test
+  public void runOneIteration_multipleCertificates_reportsShortestValidity() throws Exception {
+    X509Certificate longerCert = mock(X509Certificate.class);
+    X509Certificate shorterCert = mock(X509Certificate.class);
+    Instant now = Instant.now();
+    when(longerCert.getNotAfter()).thenReturn(Date.from(now.plus(Duration.ofDays(30))));
+    when(shorterCert.getNotAfter()).thenReturn(Date.from(now.plus(Duration.ofDays(10))));
+
+    AttestationToken token = AttestationToken.fromBytes("token".getBytes());
+    TrustPackageProvider multiCertProvider =
+        () ->
+            new TrustPackage(
+                List.of(
+                    new SelfSignedBundleWithEpoch(
+                        0, new SelfSignedBundle(longerCert, mock(PrivateKey.class), token)),
+                    new SelfSignedBundleWithEpoch(
+                        1, new SelfSignedBundle(shorterCert, mock(PrivateKey.class), token))),
+                List.of());
+    reporter = new CertificateValidityReporter(multiCertProvider, mockMetrics);
+
+    reporter.runOneIteration();
+
+    ArgumentCaptor<Duration> durationCaptor = ArgumentCaptor.forClass(Duration.class);
+    verify(mockMetrics).setRootCertificateValidity(durationCaptor.capture());
+
+    Duration reportedDuration = durationCaptor.getValue();
+    assertThat(reportedDuration.toSeconds()).isAtMost(Duration.ofDays(10).toSeconds());
   }
 }

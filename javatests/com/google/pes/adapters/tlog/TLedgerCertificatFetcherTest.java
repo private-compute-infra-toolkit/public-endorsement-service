@@ -17,14 +17,17 @@
 package com.google.pes.adapters.tlog;
 
 import static com.google.common.truth.Truth.assertThat;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.pes.domain.ports.TLogException;
 import com.google.protobuf.ByteString;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -47,24 +50,24 @@ public class TLedgerCertificatFetcherTest {
   private TLedgerCertificatFetcher fetcher;
 
   private static final String BUCKET = "test-bucket";
-  private static final String KEY = "test-key";
+  private static final int KEY_ID = 7;
+  private static final byte[] CERT_DATA = "fake-cert".getBytes(UTF_8);
 
   @Before
   public void setUp() {
-    fetcher = new TLedgerCertificatFetcher(s3Client, BUCKET, KEY);
+    fetcher = new TLedgerCertificatFetcher(s3Client, BUCKET);
   }
 
   @Test
-  public void fetch_success() {
-    byte[] certData = "fake-cert".getBytes();
-    ResponseInputStream<GetObjectResponse> responseInputStream =
-        new ResponseInputStream<>(
-            GetObjectResponse.builder().build(), new ByteArrayInputStream(certData));
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(responseInputStream);
+  public void fetch_success_readsCertificateFromKeyIdPath() {
+    stubS3(new ByteArrayInputStream(CERT_DATA));
 
-    ByteString result = fetcher.fetch();
+    ByteString result = fetcher.fetch(KEY_ID);
 
-    assertThat(result.toByteArray()).isEqualTo(certData);
+    assertThat(result.toByteArray()).isEqualTo(CERT_DATA);
+    verify(s3Client)
+        .getObject(
+            GetObjectRequest.builder().bucket(BUCKET).key("public/7/root_certificate.pem").build());
   }
 
   @Test
@@ -72,27 +75,31 @@ public class TLedgerCertificatFetcherTest {
     when(s3Client.getObject(any(GetObjectRequest.class)))
         .thenThrow(S3Exception.builder().message("S3 error").build());
 
-    assertThrows(TLogException.class, () -> fetcher.fetch());
+    assertThrows(TLogException.class, () -> fetcher.fetch(KEY_ID));
   }
 
   @Test
   public void fetch_ioException_throwsTLogException() {
-    ResponseInputStream<GetObjectResponse> responseInputStream =
-        new ResponseInputStream<>(
-            GetObjectResponse.builder().build(),
-            new java.io.InputStream() {
-              @Override
-              public int read() throws IOException {
-                throw new IOException("IO error");
-              }
+    stubS3(
+        new InputStream() {
+          @Override
+          public int read() throws IOException {
+            throw new IOException("IO error");
+          }
 
-              @Override
-              public int read(byte[] b, int off, int len) throws IOException {
-                throw new IOException("IO error");
-              }
-            });
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(responseInputStream);
+          @Override
+          public int read(byte[] b, int off, int len) throws IOException {
+            throw new IOException("IO error");
+          }
+        });
 
-    assertThrows(TLogException.class, () -> fetcher.fetch());
+    TLogException e = assertThrows(TLogException.class, () -> fetcher.fetch(KEY_ID));
+
+    assertThat(e).hasMessageThat().contains("Failed to read");
+  }
+
+  private void stubS3(InputStream content) {
+    when(s3Client.getObject(any(GetObjectRequest.class)))
+        .thenReturn(new ResponseInputStream<>(GetObjectResponse.builder().build(), content));
   }
 }

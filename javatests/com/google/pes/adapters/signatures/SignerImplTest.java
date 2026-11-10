@@ -23,7 +23,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.google.mbs.MbsCertificateFactory;
+import com.google.mbs.adapters.DefaultSelfSignedCertificateFactory;
+import com.google.mbs.adapters.DefaultSelfSignedCertificateFactory.CertSignatureSpec;
+import com.google.mbs.domain.SelfSignedCertificate;
+import com.google.mbs.domain.SelfSignedCertificateFactory;
+import com.google.mbs.domain.ValidityPeriod;
 import com.google.pes.domain.model.Signature;
 import com.google.pes.domain.model.TimeStampToken;
 import com.google.pes.domain.model.VerificationMaterial;
@@ -40,6 +44,7 @@ import java.security.Security;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.KeyUsage;
@@ -68,11 +73,11 @@ public class SignerImplTest {
       new TimeStampToken(ByteString.copyFrom(new byte[] {4, 5, 6}));
   private static final ByteString TEST_DATA = ByteString.copyFromUtf8("Some data to sign");
 
-  private static final MbsCertificateFactory.CertSignatureSpec RSA_SPEC =
-      new MbsCertificateFactory.CertSignatureSpec("RSA", 4096, "SHA256withRSA");
+  private static final CertSignatureSpec RSA_SPEC =
+      new CertSignatureSpec("RSA", 4096, "SHA256withRSA");
 
-  private static final MbsCertificateFactory.CertSignatureSpec EC_SPEC =
-      new MbsCertificateFactory.CertSignatureSpec("EC", 384, "SHA256withECDSA");
+  private static final CertSignatureSpec EC_SPEC =
+      new CertSignatureSpec("EC", 384, "SHA256withECDSA");
 
   @Before
   public void setUp() throws Exception {
@@ -82,14 +87,16 @@ public class SignerImplTest {
 
   @Test
   public void createSignature_withRSAKey_shouldProduceValidSignature() throws Exception {
-    MbsCertificateFactory factory =
-        MbsCertificateFactory.createSelfSignedCertificatesFactory(
-            RSA_SPEC,
-            new X500Name("CN=PES"),
-            Duration.ofDays(30),
-            Optional.empty(),
-            KeyUsage.digitalSignature);
-    MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey = factory.generate();
+    DefaultSelfSignedCertificateFactory factory =
+        new DefaultSelfSignedCertificateFactory(
+            RSA_SPEC, new X500Name("CN=PES"), Optional.empty(), KeyUsage.digitalSignature);
+    SelfSignedCertificateFactory.X509CertificateAndPrivateKey certAndKey =
+        factory.generate(
+            new SelfSignedCertificate(
+                0,
+                new ValidityPeriod(
+                    Instant.now().minus(Duration.ofDays(1)),
+                    Instant.now().plus(Duration.ofDays(30)))));
     X509Certificate cert = certAndKey.certificate();
     signer = new SignatureGeneratorImpl(tsaClient);
 
@@ -107,14 +114,16 @@ public class SignerImplTest {
 
   @Test
   public void createSignature_withECKey_shouldProduceValidSignature() throws Exception {
-    MbsCertificateFactory factory =
-        MbsCertificateFactory.createSelfSignedCertificatesFactory(
-            EC_SPEC,
-            new X500Name("CN=PES"),
-            Duration.ofDays(30),
-            Optional.empty(),
-            KeyUsage.digitalSignature);
-    MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey = factory.generate();
+    DefaultSelfSignedCertificateFactory factory =
+        new DefaultSelfSignedCertificateFactory(
+            EC_SPEC, new X500Name("CN=PES"), Optional.empty(), KeyUsage.digitalSignature);
+    SelfSignedCertificateFactory.X509CertificateAndPrivateKey certAndKey =
+        factory.generate(
+            new SelfSignedCertificate(
+                0,
+                new ValidityPeriod(
+                    Instant.now().minus(Duration.ofDays(1)),
+                    Instant.now().plus(Duration.ofDays(30)))));
     X509Certificate cert = certAndKey.certificate();
     signer = new SignatureGeneratorImpl(tsaClient);
 
@@ -133,14 +142,16 @@ public class SignerImplTest {
   @Test
   public void createSignature_unsupportedKeyAlgorithm_shouldThrowPesSignatureException()
       throws Exception {
-    MbsCertificateFactory factory =
-        MbsCertificateFactory.createSelfSignedCertificatesFactory(
-            RSA_SPEC,
-            new X500Name("CN=PES"),
-            Duration.ofDays(30),
-            Optional.empty(),
-            KeyUsage.digitalSignature);
-    MbsCertificateFactory.X509CertificateAndPrivateKey certAndKey = factory.generate();
+    DefaultSelfSignedCertificateFactory factory =
+        new DefaultSelfSignedCertificateFactory(
+            RSA_SPEC, new X500Name("CN=PES"), Optional.empty(), KeyUsage.digitalSignature);
+    SelfSignedCertificateFactory.X509CertificateAndPrivateKey certAndKey =
+        factory.generate(
+            new SelfSignedCertificate(
+                0,
+                new ValidityPeriod(
+                    Instant.now().minus(Duration.ofDays(1)),
+                    Instant.now().plus(Duration.ofDays(30)))));
     X509Certificate cert = certAndKey.certificate();
 
     when(mockPrivateKey.getAlgorithm()).thenReturn("UNSUPPORTED_ALGO");

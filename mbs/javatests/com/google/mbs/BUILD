@@ -17,54 +17,16 @@ load("@rules_java//java:defs.bzl", "java_test")
 package(default_visibility = ["//visibility:public"])
 
 java_test(
-    name = "KmsMeasurementBoundCertificateProviderTest",
-    size = "small",
-    srcs = ["KmsMeasurementBoundCertificateProviderTest.java"],
-    deps = [
-        "//java/com/google/mbs:certmanagement",
-        "//java/com/google/mbs/domain",
-        "@maven//:com_google_code_gson_gson",
-        "@maven//:com_google_crypto_tink_tink",
-        "@maven//:com_google_guava_guava",
-        "@maven//:junit_junit",
-        "@maven//:org_bouncycastle_bcpkix_jdk18on",
-        "@maven//:org_bouncycastle_bcprov_jdk18on",
-        "@maven//:org_mockito_mockito_core",
-    ],
-)
-
-java_test(
-    name = "KeyBackupBucketPropertiesFactoryTest",
-    size = "small",
-    srcs = ["KeyBackupBucketPropertiesFactoryTest.java"],
-    deps = [
-        "//java/com/google/mbs:certmanagement",
-    ],
-)
-
-java_test(
-    name = "MbsCertificateFactoryTest",
-    size = "small",
-    srcs = ["MbsCertificateFactoryTest.java"],
-    deps = [
-        "//java/com/google/mbs:certmanagement",
-        "@maven//:junit_junit",
-        "@maven//:org_bouncycastle_bcpkix_jdk18on",
-        "@maven//:org_bouncycastle_bcprov_jdk18on",
-    ],
-)
-
-java_test(
     name = "MbsModuleTest",
     size = "small",
     srcs = ["MbsModuleTest.java"],
     deps = [
-        "//java/com/google/mbs:certmanagement",
         "//java/com/google/mbs:dummy_cert_provider",
         "//java/com/google/mbs:module",
         "//java/com/google/mbs/adapters",
         "//java/com/google/mbs/adapters/nsm",
         "//java/com/google/mbs/domain",
+        "//java/com/google/mbs/qualifier",
         "@maven//:com_google_inject_guice",
         "@maven//:jakarta_inject_jakarta_inject_api",
         "@maven//:junit_junit",
@@ -83,11 +45,14 @@ java_test(
         "requires-network",
     ],
     deps = [
-        "//java/com/google/mbs:certmanagement",
         "//java/com/google/mbs:module",
+        "//java/com/google/mbs/adapters",
         "//java/com/google/mbs/domain",
         "//java/com/google/mbs/dummy",
+        "//java/com/google/mbs/qualifier",
         "//javatests/com/google/mbs/testing",
+        "//proto:certificates_config_java_proto",
+        "@com_google_protobuf//:protobuf_java",
         "@maven//:com_google_inject_extensions_guice_testlib",
         "@maven//:com_google_inject_guice",
         "@maven//:jakarta_inject_jakarta_inject_api",
@@ -101,16 +66,5 @@ java_test(
         "@maven//:software_amazon_awssdk_regions",
         "@maven//:software_amazon_awssdk_s3",
         "@maven//:software_amazon_awssdk_sdk_core",
-    ],
-)
-
-java_test(
-    name = "TrustPackageTest",
-    size = "small",
-    srcs = ["TrustPackageTest.java"],
-    deps = [
-        "//java/com/google/mbs/domain",
-        "@maven//:junit_junit",
-        "@maven//:org_mockito_mockito_core",
     ],
 )

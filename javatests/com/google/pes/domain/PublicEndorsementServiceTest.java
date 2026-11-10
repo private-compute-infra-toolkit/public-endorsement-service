@@ -25,9 +25,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.google.mbs.domain.MeasurementBoundCertificate;
-import com.google.mbs.domain.MeasurementBoundCertificateProvider;
+import com.google.mbs.domain.AttestationToken;
+import com.google.mbs.domain.SelfSignedBundle;
+import com.google.mbs.domain.SelfSignedBundleWithEpoch;
 import com.google.mbs.domain.TrustPackage;
+import com.google.mbs.domain.TrustPackageProvider;
 import com.google.pes.domain.metric.Metrics;
 import com.google.pes.domain.model.Endorsement;
 import com.google.pes.domain.model.Signature;
@@ -63,14 +65,14 @@ public class PublicEndorsementServiceTest {
   @Mock private SignatureGenerator mockSignatureGenerator;
   @Mock private SignatureVerifier mockSignatureVerifier;
   @Mock private Metrics mockMetrics;
-  @Mock private MeasurementBoundCertificateProvider mockCertificateProvider;
+  @Mock private TrustPackageProvider mockCertificateProvider;
   @Mock private X509Certificate mockCertificate;
   @Mock private PrivateKey mockPrivateKey;
   @Mock private X509Certificate mockSecondCertificate;
   @Mock private PrivateKey mockSecondPrivateKey;
 
   private PublicEndorsementService publicEndorsementService;
-  private MeasurementBoundCertificate testMbc;
+  private SelfSignedBundle testBundle;
   private static final Instant CERT_EXPIRY = Instant.parse("2026-12-31T23:59:59Z");
   private static final Instant EARLIER_CERT_EXPIRY = Instant.parse("2026-10-31T23:59:59Z");
 
@@ -90,9 +92,12 @@ public class PublicEndorsementServiceTest {
   @Before
   public void setUp() {
     when(mockCertificate.getNotAfter()).thenReturn(Date.from(CERT_EXPIRY));
-    testMbc = new MeasurementBoundCertificate(mockCertificate, mockPrivateKey, null);
+    testBundle =
+        new SelfSignedBundle(
+            mockCertificate, mockPrivateKey, AttestationToken.fromBytes("token".getBytes()));
     when(mockCertificateProvider.getActiveTrustPackage())
-        .thenReturn(new TrustPackage(List.of(testMbc), List.of()));
+        .thenReturn(
+            new TrustPackage(List.of(new SelfSignedBundleWithEpoch(0, testBundle)), List.of()));
     publicEndorsementService =
         new PublicEndorsementService(
             mockTLog,
@@ -142,10 +147,18 @@ public class PublicEndorsementServiceTest {
   @Test
   public void createEndorsement_multipleCertificates_verifiesEarliestExpiryAndSignsWithAll() {
     when(mockSecondCertificate.getNotAfter()).thenReturn(Date.from(EARLIER_CERT_EXPIRY));
-    MeasurementBoundCertificate secondMbc =
-        new MeasurementBoundCertificate(mockSecondCertificate, mockSecondPrivateKey, null);
+    SelfSignedBundle secondBundle =
+        new SelfSignedBundle(
+            mockSecondCertificate,
+            mockSecondPrivateKey,
+            AttestationToken.fromBytes("token".getBytes()));
     when(mockCertificateProvider.getActiveTrustPackage())
-        .thenReturn(new TrustPackage(List.of(testMbc, secondMbc), List.of()));
+        .thenReturn(
+            new TrustPackage(
+                List.of(
+                    new SelfSignedBundleWithEpoch(0, testBundle),
+                    new SelfSignedBundleWithEpoch(1, secondBundle)),
+                List.of()));
     when(mockEndorsementVerifier.parseAndVerify(any(), any(), any(), any()))
         .thenReturn(new VerifiedEndorsement("publisherId"));
     TLogReceipt tLogReceipt = new TLogReceipt("logId");

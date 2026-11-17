@@ -35,7 +35,6 @@ import com.google.protobuf.ByteString;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.Before;
@@ -63,7 +62,6 @@ public class EndorsementVerifierTest {
   private static final String TEST_SUBJECT = "test-subject";
   private static final CallerIdentity TEST_IDENTITY =
       new CallerIdentity(TEST_ISSUER, TEST_SUBJECT, java.util.Set.of("test-audience"));
-  private static final Instant DEFAULT_MAX_NOT_AFTER = Instant.parse("2026-12-31T23:59:59Z");
 
   private static ByteString loadTestData(String filePath) {
     String resourcePath = "/com/google/pes/testdata/intoto_v1_examples/" + filePath;
@@ -106,10 +104,7 @@ public class EndorsementVerifierTest {
   public void parseAndVerify_success() {
     VerifiedEndorsement verifiedEndorsement =
         verifier.parseAndVerify(
-            TEST_ENDORSEMENT.statement(),
-            TEST_IDENTITY,
-            TEST_ENDORSEMENT.statementSignature(),
-            DEFAULT_MAX_NOT_AFTER);
+            TEST_ENDORSEMENT.statement(), TEST_IDENTITY, TEST_ENDORSEMENT.statementSignature());
 
     assertThat(verifiedEndorsement.publisherId()).isEqualTo(TEST_PUBLISHER_ID);
     verify(mockPublisherVerifier)
@@ -123,9 +118,7 @@ public class EndorsementVerifierTest {
 
     assertThrows(
         IllegalArgumentException.class,
-        () ->
-            verifier.parseAndVerify(
-                statement, TEST_IDENTITY, TEST_SIGNATURE, DEFAULT_MAX_NOT_AFTER));
+        () -> verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE));
     verifyNoInteractions(mockPublisherVerifier);
   }
 
@@ -143,47 +136,8 @@ public class EndorsementVerifierTest {
             verifier.parseAndVerify(
                 inputEndorsement.statement(),
                 TEST_IDENTITY,
-                inputEndorsement.statementSignature(),
-                DEFAULT_MAX_NOT_AFTER));
+                inputEndorsement.statementSignature()));
     verifyNoInteractions(mockPublisherVerifier);
-  }
-
-  @Test
-  public void parseAndVerify_notAfterExceedsMaxNotAfter_throwsIllegalArgumentException() {
-    Instant earlyMaxNotAfter = Instant.parse("2026-08-31T23:59:59Z");
-
-    IllegalArgumentException thrown =
-        assertThrows(
-            IllegalArgumentException.class,
-            () ->
-                verifier.parseAndVerify(
-                    TEST_ENDORSEMENT.statement(),
-                    TEST_IDENTITY,
-                    TEST_ENDORSEMENT.statementSignature(),
-                    earlyMaxNotAfter));
-
-    assertThat(thrown)
-        .hasMessageThat()
-        .contains(
-            "predicate.validity.notAfter (2026-09-01T00:00:00Z) must be on or before"
-                + " 2026-08-31T23:59:59Z, the latest expiration PES currently allows");
-    verifyNoInteractions(mockPublisherVerifier);
-  }
-
-  @Test
-  public void parseAndVerify_notAfterBeforeMaxNotAfter_success() {
-    Instant maxNotAfter = Instant.parse("2026-10-31T23:59:59Z");
-
-    VerifiedEndorsement verifiedEndorsement =
-        verifier.parseAndVerify(
-            TEST_ENDORSEMENT.statement(),
-            TEST_IDENTITY,
-            TEST_ENDORSEMENT.statementSignature(),
-            maxNotAfter);
-
-    assertThat(verifiedEndorsement.publisherId()).isEqualTo(TEST_PUBLISHER_ID);
-    verify(mockPublisherVerifier)
-        .verify(TEST_PUBLISHER_ID, TEST_IDENTITY, TEST_ENDORSEMENT.statementSignature());
   }
 
   @Test
@@ -193,9 +147,7 @@ public class EndorsementVerifierTest {
     IllegalArgumentException thrown =
         assertThrows(
             IllegalArgumentException.class,
-            () ->
-                verifier.parseAndVerify(
-                    statement, TEST_IDENTITY, TEST_SIGNATURE, DEFAULT_MAX_NOT_AFTER));
+            () -> verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE));
 
     assertThat(thrown).hasMessageThat().contains("Missing required creator property 'validity'");
     verifyNoInteractions(mockPublisherVerifier);
@@ -208,9 +160,7 @@ public class EndorsementVerifierTest {
     IllegalArgumentException thrown =
         assertThrows(
             IllegalArgumentException.class,
-            () ->
-                verifier.parseAndVerify(
-                    statement, TEST_IDENTITY, TEST_SIGNATURE, DEFAULT_MAX_NOT_AFTER));
+            () -> verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE));
 
     assertThat(thrown).hasMessageThat().contains("Missing required creator property 'notAfter'");
     verifyNoInteractions(mockPublisherVerifier);
@@ -227,8 +177,7 @@ public class EndorsementVerifierTest {
             verifier.parseAndVerify(
                 TEST_ENDORSEMENT.statement(),
                 TEST_IDENTITY,
-                TEST_ENDORSEMENT.statementSignature(),
-                DEFAULT_MAX_NOT_AFTER));
+                TEST_ENDORSEMENT.statementSignature()));
     verifyNoInteractions(mockPublisherVerifier);
   }
 
@@ -244,8 +193,7 @@ public class EndorsementVerifierTest {
             verifier.parseAndVerify(
                 TEST_ENDORSEMENT.statement(),
                 TEST_IDENTITY,
-                TEST_ENDORSEMENT.statementSignature(),
-                DEFAULT_MAX_NOT_AFTER));
+                TEST_ENDORSEMENT.statementSignature()));
   }
 
   @Test
@@ -254,9 +202,7 @@ public class EndorsementVerifierTest {
 
     assertThrows(
         IllegalArgumentException.class,
-        () ->
-            verifier.parseAndVerify(
-                statement, TEST_IDENTITY, TEST_SIGNATURE, DEFAULT_MAX_NOT_AFTER));
+        () -> verifier.parseAndVerify(statement, TEST_IDENTITY, TEST_SIGNATURE));
     verifyNoInteractions(mockPublisherVerifier);
   }
 

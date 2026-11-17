@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.15.0 (2026-11-17)
+
+
+### Bug Fixes
+
+* Remove endorsement expiration check
+
 ## 0.14.0 (2026-11-10)
 
 

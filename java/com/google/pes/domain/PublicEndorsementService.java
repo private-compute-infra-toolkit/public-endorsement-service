@@ -31,8 +31,6 @@ import com.google.pes.domain.ports.SignatureVerifier;
 import com.google.pes.domain.ports.TLog;
 import com.google.protobuf.ByteString;
 import jakarta.inject.Inject;
-import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -84,13 +82,13 @@ public class PublicEndorsementService {
         certificateProvider.getActiveTrustPackage().selfSignedBundles().stream()
             .map(SelfSignedBundleWithEpoch::bundle)
             .toList();
+    if (bundles.isEmpty()) {
+      throw new IllegalStateException("No active certificates in trust package");
+    }
 
     VerifiedEndorsement verifiedEndorsement =
         endorsementVerifier.parseAndVerify(
-            publicEndorsement.statement(),
-            identity,
-            publicEndorsement.statementSignature(),
-            getEarliestCertificateExpiry(bundles));
+            publicEndorsement.statement(), identity, publicEndorsement.statementSignature());
 
     signatureVerifier.verify(
         publicEndorsement.statementSignature(), publicEndorsement.statement().serialized());
@@ -127,12 +125,5 @@ public class PublicEndorsementService {
         publicEndorsement.statementSignature(),
         endorsementSignatures,
         tLogReceipt);
-  }
-
-  private Instant getEarliestCertificateExpiry(List<SelfSignedBundle> bundles) {
-    return bundles.stream()
-        .map(bundle -> bundle.certificate().getNotAfter().toInstant())
-        .min(Comparator.naturalOrder())
-        .orElseThrow(() -> new IllegalStateException("No active certificates in trust package"));
   }
 }

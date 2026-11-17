@@ -18,7 +18,6 @@ package com.google.pes.domain;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.pes.adapters.statementvalidation.InTotoStatement;
-import com.google.pes.adapters.statementvalidation.OakPredicate;
 import com.google.pes.domain.model.Statement;
 import com.google.pes.domain.model.StatementSignature;
 import com.google.pes.domain.model.VerifiedEndorsement;
@@ -26,14 +25,11 @@ import com.google.pes.domain.ports.PublisherIdProvider;
 import jakarta.inject.Inject;
 import jakarta.inject.Provider;
 import java.io.IOException;
-import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.Map;
 
 /**
- * Verifies endorsement statement validity dates against maximum allowed expiration timestamp, uses
- * {@link PublisherIdProvider} to extract publisher ID, and delegates policy verification to {@link
- * PublisherVerifier}.
+ * Verifies endorsement statement structure, uses {@link PublisherIdProvider} to extract publisher
+ * ID, and delegates policy verification to {@link PublisherVerifier}.
  */
 public class EndorsementVerifier {
 
@@ -52,22 +48,17 @@ public class EndorsementVerifier {
   }
 
   /**
-   * Verifies the statement validity, expiration date against {@code maxNotAfter}, extracts
-   * publisher ID via {@link PublisherIdProvider}, and verifies publisher policy via {@link
-   * PublisherVerifier}.
+   * Verifies the statement structure, extracts publisher ID via {@link PublisherIdProvider}, and
+   * verifies publisher policy via {@link PublisherVerifier}.
    *
    * @param statement The endorsement statement to verify.
    * @param identity The OIDC identity of the client.
    * @param signature The signature object containing verification material.
-   * @param maxNotAfter The maximum allowed expiration timestamp for the endorsement statement.
    * @return The verified endorsement containing extracted valid publisher ID.
    * @throws IllegalArgumentException if statement verification or policy verification fails.
    */
   public VerifiedEndorsement parseAndVerify(
-      Statement statement,
-      CallerIdentity identity,
-      StatementSignature signature,
-      Instant maxNotAfter) {
+      Statement statement, CallerIdentity identity, StatementSignature signature) {
     if (statement.format() == Statement.Format.FORMAT_UNSPECIFIED) {
       throw new IllegalArgumentException("The statement format has to be specified");
     }
@@ -82,7 +73,6 @@ public class EndorsementVerifier {
     }
 
     validatePredicateType(inTotoStatement);
-    validateNotAfter(inTotoStatement.getPredicate(), maxNotAfter);
     String publisherId = validatePublisherAndGetPublisherId(statement, identity, signature);
     return new VerifiedEndorsement(publisherId);
   }
@@ -90,27 +80,6 @@ public class EndorsementVerifier {
   private void validatePredicateType(InTotoStatement inTotoStatement) {
     if (inTotoStatement == null || inTotoStatement.getPredicate() == null) {
       throw new IllegalArgumentException("Statement or predicate cannot be null");
-    }
-  }
-
-  private void validateNotAfter(OakPredicate predicate, Instant maxNotAfter) {
-    if (predicate.getValidity() == null) {
-      throw new IllegalArgumentException("Failed to resolve predicate validity");
-    }
-
-    String notAfterStr = predicate.getValidity().getNotAfter();
-    if (notAfterStr == null) {
-      throw new IllegalArgumentException("Failed to resolve predicate validity expiration date");
-    }
-
-    Instant endorsementNotAfter = parseInstant(notAfterStr);
-
-    if (endorsementNotAfter.isAfter(maxNotAfter)) {
-      throw new IllegalArgumentException(
-          String.format(
-              "predicate.validity.notAfter (%s) must be on or before %s, the latest expiration PES"
-                  + " currently allows",
-              notAfterStr, maxNotAfter));
     }
   }
 
@@ -124,14 +93,5 @@ public class EndorsementVerifier {
     String publisherId = provider.get().getValidPublisherId(statement.serialized());
     publisherVerifier.verify(publisherId, identity, signature);
     return publisherId;
-  }
-
-  private static Instant parseInstant(String timestamp) {
-    try {
-      return Instant.parse(timestamp);
-    } catch (DateTimeParseException e) {
-      throw new IllegalArgumentException(
-          "Invalid RFC 3339 timestamp in statement notAfter: " + timestamp, e);
-    }
   }
 }

@@ -47,8 +47,6 @@ import com.google.pes.domain.ports.TLogException;
 import com.google.protobuf.ByteString;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
-import java.time.Instant;
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import org.junit.Before;
@@ -73,8 +71,6 @@ public class PublicEndorsementServiceTest {
 
   private PublicEndorsementService publicEndorsementService;
   private SelfSignedBundle testBundle;
-  private static final Instant CERT_EXPIRY = Instant.parse("2026-12-31T23:59:59Z");
-  private static final Instant EARLIER_CERT_EXPIRY = Instant.parse("2026-10-31T23:59:59Z");
 
   Statement STATEMENT =
       new Statement(Statement.Format.JSON_INTOTO, ByteString.copyFromUtf8("statement"));
@@ -91,7 +87,6 @@ public class PublicEndorsementServiceTest {
 
   @Before
   public void setUp() {
-    when(mockCertificate.getNotAfter()).thenReturn(Date.from(CERT_EXPIRY));
     testBundle =
         new SelfSignedBundle(
             mockCertificate, mockPrivateKey, AttestationToken.fromBytes("token".getBytes()));
@@ -110,7 +105,7 @@ public class PublicEndorsementServiceTest {
 
   @Test
   public void createEndorsement_success() {
-    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any(), any()))
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
         .thenReturn(new VerifiedEndorsement("publisherId"));
     TLogReceipt tLogReceipt = new TLogReceipt("logId");
     when(mockTLog.post(any())).thenReturn(tLogReceipt);
@@ -139,14 +134,13 @@ public class PublicEndorsementServiceTest {
 
     verify(mockCertificateProvider).getActiveTrustPackage();
     verify(mockEndorsementVerifier)
-        .parseAndVerify(eq(STATEMENT), eq(TEST_IDENTITY), eq(STATEMENT_SIGNATURE), eq(CERT_EXPIRY));
+        .parseAndVerify(eq(STATEMENT), eq(TEST_IDENTITY), eq(STATEMENT_SIGNATURE));
     verify(mockSignatureVerifier).verify(eq(STATEMENT_SIGNATURE), eq(STATEMENT.serialized()));
     verify(mockMetrics).incrementEndorsementCounter(eq("publisherId"));
   }
 
   @Test
-  public void createEndorsement_multipleCertificates_verifiesEarliestExpiryAndSignsWithAll() {
-    when(mockSecondCertificate.getNotAfter()).thenReturn(Date.from(EARLIER_CERT_EXPIRY));
+  public void createEndorsement_multipleCertificates_signsWithAll() {
     SelfSignedBundle secondBundle =
         new SelfSignedBundle(
             mockSecondCertificate,
@@ -159,7 +153,7 @@ public class PublicEndorsementServiceTest {
                     new SelfSignedBundleWithEpoch(0, testBundle),
                     new SelfSignedBundleWithEpoch(1, secondBundle)),
                 List.of()));
-    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any(), any()))
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
         .thenReturn(new VerifiedEndorsement("publisherId"));
     TLogReceipt tLogReceipt = new TLogReceipt("logId");
     when(mockTLog.post(any())).thenReturn(tLogReceipt);
@@ -194,8 +188,7 @@ public class PublicEndorsementServiceTest {
         .containsExactly(firstSignature, secondSignature)
         .inOrder();
     verify(mockEndorsementVerifier)
-        .parseAndVerify(
-            eq(STATEMENT), eq(TEST_IDENTITY), eq(STATEMENT_SIGNATURE), eq(EARLIER_CERT_EXPIRY));
+        .parseAndVerify(eq(STATEMENT), eq(TEST_IDENTITY), eq(STATEMENT_SIGNATURE));
   }
 
   @Test
@@ -214,7 +207,7 @@ public class PublicEndorsementServiceTest {
   public void createEndorsement_endorsementVerifierThrowsException_propagatesException() {
     doThrow(new IllegalArgumentException("Verification failed"))
         .when(mockEndorsementVerifier)
-        .parseAndVerify(any(), any(), any(), any());
+        .parseAndVerify(any(), any(), any());
 
     assertThrows(
         IllegalArgumentException.class,
@@ -224,7 +217,7 @@ public class PublicEndorsementServiceTest {
 
   @Test
   public void createEndorsement_tLogThrowsException_propagatesException() {
-    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any(), any()))
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
         .thenReturn(new VerifiedEndorsement("publisherId"));
     when(mockTLog.post(any())).thenThrow(new TLogException("TLog error"));
 
@@ -236,7 +229,7 @@ public class PublicEndorsementServiceTest {
 
   @Test
   public void createEndorsement_signatureVerifierThrowsException_propagatesException() {
-    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any(), any()))
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
         .thenReturn(new VerifiedEndorsement("publisherId"));
     doThrow(new InvalidSignatureException("Invalid sig"))
         .when(mockSignatureVerifier)
@@ -250,7 +243,7 @@ public class PublicEndorsementServiceTest {
 
   @Test
   public void createEndorsement_signerThrowsException_propagatesException() {
-    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any(), any()))
+    when(mockEndorsementVerifier.parseAndVerify(any(), any(), any()))
         .thenReturn(new VerifiedEndorsement("publisherId"));
     when(mockTLog.post(any())).thenReturn(new TLogReceipt("logId"));
     when(mockSignatureGenerator.generate(any(), any(), any()))

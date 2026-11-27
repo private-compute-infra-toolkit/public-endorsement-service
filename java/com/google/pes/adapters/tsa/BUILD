@@ -42,9 +42,8 @@ java_library(
     deps = [
         "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
+        "//java/com/google/pes/proto:tsa_config_java_proto",
         "@com_google_protobuf//:protobuf_java",
-        "@maven//:com_fasterxml_jackson_core_jackson_annotations",
-        "@maven//:com_fasterxml_jackson_core_jackson_databind",
         "@maven//:com_google_flogger_flogger",
         "@maven//:com_google_guava_guava",
         "@maven//:jakarta_inject_jakarta_inject_api",

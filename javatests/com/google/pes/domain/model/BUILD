@@ -15,10 +15,10 @@
 load("@rules_java//java:defs.bzl", "java_test")
 
 java_test(
-    name = "TsaConfigTest",
+    name = "TsaConfigurationTest",
     size = "small",
-    srcs = ["TsaConfigTest.java"],
-    test_class = "com.google.pes.domain.model.TsaConfigTest",
+    srcs = ["TsaConfigurationTest.java"],
+    test_class = "com.google.pes.domain.model.TsaConfigurationTest",
     deps = [
         "//java/com/google/pes/domain/model",
         "@maven//:com_google_truth_truth",

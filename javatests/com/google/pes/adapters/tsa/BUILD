@@ -76,7 +76,6 @@ java_test(
         "//java/com/google/pes/adapters/tsa",
         "//java/com/google/pes/domain/model",
         "//java/com/google/pes/domain/ports",
-        "@maven//:com_fasterxml_jackson_core_jackson_databind",
         "@maven//:com_google_truth_truth",
         "@maven//:junit_junit",
         "@maven//:org_mockito_mockito_core",

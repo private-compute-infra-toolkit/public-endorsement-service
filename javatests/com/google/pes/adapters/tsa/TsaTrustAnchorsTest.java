@@ -18,11 +18,14 @@ package com.google.pes.adapters.tsa;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.security.MessageDigest;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
+import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.Set;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -30,19 +33,24 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class TsaTrustAnchorsTest {
 
-  private static final String DIGICERT_GLOBAL_ROOT_SHA256 =
-      "4348a0e9444c78cb265e058d5e8944b4d84f9662bd26db257f8934a443c70161";
-  private static final String GLOBALSIGN_ROOT_R3_SHA256 =
-      "cbb522d7b7f127ad6a0113865bdf1cd4102e7d0759af635a7cf4720dc963c53b";
+  private static final ImmutableMap<String, String> EXPECTED_ROOT_CERTS =
+      ImmutableMap.of(
+          "4348a0e9444c78cb265e058d5e8944b4d84f9662bd26db257f8934a443c70161",
+          "DigiCert Global Root CA",
+          "552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988",
+          "DigiCert Trusted Root G4",
+          "cbb522d7b7f127ad6a0113865bdf1cd4102e7d0759af635a7cf4720dc963c53b",
+          "GlobalSign Root CA - R3",
+          "2cabeafe37d06ca22aba7391c0033d25982952c453647349763a3ab5ad6ccf69",
+          "GlobalSign Root CA - R6");
 
   @Test
   public void getDefaultTrustAnchors_loadsExpectedAnchors() throws Exception {
     ImmutableSet<TrustAnchor> anchors = TsaTrustAnchors.getDefaultTrustAnchors();
-    assertThat(anchors).hasSize(2);
+    assertThat(anchors).hasSize(EXPECTED_ROOT_CERTS.size());
 
     MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-    boolean hasDigiCert = false;
-    boolean hasGlobalSign = false;
+    Set<String> seenFingerprints = new HashSet<>();
 
     for (TrustAnchor anchor : anchors) {
       X509Certificate cert = anchor.getTrustedCert();
@@ -54,18 +62,12 @@ public class TsaTrustAnchorsTest {
       String fingerprint = HexFormat.of().formatHex(sha256.digest(cert.getEncoded()));
       String dn = cert.getSubjectX500Principal().getName();
 
-      if (fingerprint.equalsIgnoreCase(DIGICERT_GLOBAL_ROOT_SHA256)) {
-        assertThat(dn).contains("DigiCert Global Root CA");
-        hasDigiCert = true;
-      } else if (fingerprint.equalsIgnoreCase(GLOBALSIGN_ROOT_R3_SHA256)) {
-        assertThat(dn).contains("GlobalSign Root CA - R3");
-        hasGlobalSign = true;
-      } else {
-        throw new AssertionError("Unexpected trust anchor certificate: " + dn);
-      }
+      String expectedDnSubstring = EXPECTED_ROOT_CERTS.get(fingerprint);
+      assertThat(expectedDnSubstring).isNotNull();
+      assertThat(dn).contains(expectedDnSubstring);
+      seenFingerprints.add(fingerprint);
     }
 
-    assertThat(hasDigiCert).isTrue();
-    assertThat(hasGlobalSign).isTrue();
+    assertThat(seenFingerprints).containsExactlyElementsIn(EXPECTED_ROOT_CERTS.keySet());
   }
 }

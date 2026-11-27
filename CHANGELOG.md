@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.16.0 (2026-11-27)
+
+
+### Features
+
+* Read TSA config as textproto from S3
+
+
+### Bug Fixes
+
+* Add DigiCert G4 and GlobalSign R6 TSA roots
+
 ## 0.15.0 (2026-11-17)
 
 

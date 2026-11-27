@@ -24,7 +24,7 @@ java_library(
         "StatementSignature.java",
         "TLogReceipt.java",
         "TimeStampToken.java",
-        "TsaConfig.java",
+        "TsaConfiguration.java",
         "VerificationMaterial.java",
         "VerifiedEndorsement.java",
     ],

@@ -23,10 +23,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.pes.domain.model.TsaConfig;
+import com.google.pes.domain.model.TsaConfiguration;
 import com.google.pes.domain.ports.TsaException;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -52,13 +52,12 @@ public class S3TsaConfigProviderTest {
   private static final String CONFIG_KEY = S3TsaConfigProvider.TSA_CONFIG_FILE_NAME;
 
   @Mock private S3Client s3Client;
-  private final ObjectMapper objectMapper = new ObjectMapper();
 
   private S3TsaConfigProvider provider;
 
   @Before
   public void setUp() {
-    provider = new S3TsaConfigProvider(s3Client, BUCKET_NAME, objectMapper);
+    provider = new S3TsaConfigProvider(s3Client, BUCKET_NAME);
   }
 
   private ResponseInputStream<GetObjectResponse> createS3Stream(String content) {
@@ -69,19 +68,16 @@ public class S3TsaConfigProviderTest {
 
   @Test
   public void getConfig_whenEnabledWithUrls_returnsCorrectConfig() {
-    String json =
+    String textProto =
         """
-        {
-          "enabled": true,
-          "tsa_urls": [
-            "https://tsa1.example.com/tsa",
-            "https://tsa2.example.com/tsa"
-          ]
+        enabled {
+          tsa_urls: "https://tsa1.example.com/tsa"
+          tsa_urls: "https://tsa2.example.com/tsa"
         }
         """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
     assertThat(config.enabled()).isTrue();
     assertThat(config.tsaUrls())
@@ -91,88 +87,99 @@ public class S3TsaConfigProviderTest {
     ArgumentCaptor<GetObjectRequest> captor = ArgumentCaptor.forClass(GetObjectRequest.class);
     verify(s3Client).getObject(captor.capture());
     assertThat(captor.getValue().bucket()).isEqualTo(BUCKET_NAME);
+    assertThat(captor.getValue().key()).isEqualTo("tsa_config.textproto");
     assertThat(captor.getValue().key()).isEqualTo(CONFIG_KEY);
   }
 
   @Test
   public void getConfig_whenDisabled_returnsDisabledConfig() {
-    String json =
+    String textProto =
         """
-        {
-          "enabled": false,
-          "tsa_urls": []
-        }
+        disabled {}
         """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
     assertThat(config.enabled()).isFalse();
     assertThat(config.tsaUrls()).isEmpty();
   }
 
   @Test
-  public void getConfig_whenTsaUrlsOmitted_returnsEmptyUrlList() {
-    String json =
-        """
-        {
-          "enabled": false
-        }
-        """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+  public void getConfig_whenEmptyTextProto_returnsDisabledConfig() {
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(""));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
     assertThat(config.enabled()).isFalse();
     assertThat(config.tsaUrls()).isEmpty();
   }
 
   @Test
-  public void getConfig_whenTsaUrlsNull_returnsEmptyUrlList() {
-    String json =
+  public void getConfig_whenBothEnabledAndDisabledSet_returnsDisabledConfig() {
+    String textProto =
         """
-        {
-          "enabled": false,
-          "tsa_urls": null
+        disabled {}
+        enabled {
+          tsa_urls: "https://tsa.example.com/tsa"
         }
         """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config.enabled()).isFalse();
-    assertThat(config.tsaUrls()).isEmpty();
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
   }
 
   @Test
-  public void getConfig_whenTsaUrlsContainsNullElement_returnsDisabledConfig() {
-    String json =
+  public void getConfig_whenTsaUrlsContainsEmptyString_returnsDisabledConfig() {
+    String textProto =
         """
-        {
-          "enabled": true,
-          "tsa_urls": ["https://tsa.example.com/tsa", null]
+        enabled {
+          tsa_urls: "https://tsa.example.com/tsa"
+          tsa_urls: ""
         }
         """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
   }
 
   @Test
-  public void getConfig_whenJsonContainsUnknownProperties_ignoresUnknownProperties() {
-    String json =
+  public void getConfig_whenTextProtoContainsUnknownFields_ignoresUnknownFields() {
+    String textProto =
         """
-        {
-          "enabled": true,
-          "tsa_urls": ["https://tsa.example.com/tsa"],
-          "unknown_field": "some_value"
+        enabled {
+          tsa_urls: "https://tsa.example.com/tsa"
+          unknown_inner_field: "ignored"
+        }
+        unknown_field: "some_value"
+        unknown_block { nested: 123 }
+        """;
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
+
+    TsaConfiguration config = provider.getConfig();
+
+    assertThat(config.enabled()).isTrue();
+    assertThat(config.tsaUrls()).containsExactly(URI.create("https://tsa.example.com/tsa"));
+  }
+
+  @Test
+  public void getConfig_whenTextProtoContainsComments_returnsCorrectConfig() {
+    String textProto =
+        """
+        # Primary TSA configuration
+        enabled {
+          tsa_urls: "https://tsa.example.com/tsa" # inline comment
         }
         """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
     assertThat(config.enabled()).isTrue();
     assertThat(config.tsaUrls()).containsExactly(URI.create("https://tsa.example.com/tsa"));
@@ -183,9 +190,9 @@ public class S3TsaConfigProviderTest {
     when(s3Client.getObject(any(GetObjectRequest.class)))
         .thenThrow(NoSuchBucketException.builder().message("Bucket not found").build());
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
     assertThat(config.enabled()).isFalse();
     assertThat(config.tsaUrls()).isEmpty();
   }
@@ -195,9 +202,9 @@ public class S3TsaConfigProviderTest {
     when(s3Client.getObject(any(GetObjectRequest.class)))
         .thenThrow(NoSuchKeyException.builder().message("Key not found").build());
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
     assertThat(config.enabled()).isFalse();
     assertThat(config.tsaUrls()).isEmpty();
   }
@@ -218,9 +225,9 @@ public class S3TsaConfigProviderTest {
                     .message("The specified bucket does not exist")
                     .build());
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
     assertThat(config.enabled()).isFalse();
     assertThat(config.tsaUrls()).isEmpty();
   }
@@ -241,9 +248,9 @@ public class S3TsaConfigProviderTest {
                     .message("The specified key does not exist")
                     .build());
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
     assertThat(config.enabled()).isFalse();
     assertThat(config.tsaUrls()).isEmpty();
   }
@@ -254,9 +261,9 @@ public class S3TsaConfigProviderTest {
         .thenThrow(
             (S3Exception) S3Exception.builder().statusCode(404).message("Not Found").build());
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
     assertThat(config.enabled()).isFalse();
     assertThat(config.tsaUrls()).isEmpty();
   }
@@ -267,35 +274,77 @@ public class S3TsaConfigProviderTest {
         .thenThrow(
             (S3Exception) S3Exception.builder().statusCode(403).message("Access denied").build());
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
   }
 
   @Test
-  public void getConfig_whenMalformedJson_returnsDisabledConfig() {
+  public void getConfig_whenMalformedTextProto_returnsDisabledConfig() {
     when(s3Client.getObject(any(GetObjectRequest.class)))
-        .thenReturn(createS3Stream("not a valid json"));
+        .thenReturn(createS3Stream("not a valid textproto"));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
   }
 
   @Test
-  public void getConfig_whenInvalidUriInConfig_returnsDisabledConfig() {
+  public void getConfig_whenJsonInsteadOfTextProto_returnsDisabledConfig() {
     String json =
         """
         {
           "enabled": true,
-          "tsa_urls": ["https://invalid uri with spaces"]
+          "tsa_urls": ["https://tsa.example.com/tsa"]
         }
         """;
     when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
+  }
+
+  @Test
+  public void getConfig_whenInvalidUriInConfig_returnsDisabledConfig() {
+    String textProto =
+        """
+        enabled {
+          tsa_urls: "https://invalid uri with spaces"
+        }
+        """;
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
+
+    TsaConfiguration config = provider.getConfig();
+
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
+  }
+
+  @Test
+  public void getConfig_whenIoExceptionReadingStream_returnsDisabledConfig() {
+    InputStream failingStream =
+        new InputStream() {
+          @Override
+          public int read() throws IOException {
+            throw new IOException("Simulated stream read error");
+          }
+        };
+    ResponseInputStream<GetObjectResponse> s3Stream =
+        new ResponseInputStream<>(
+            GetObjectResponse.builder().build(), AbortableInputStream.create(failingStream));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(s3Stream);
+
+    TsaConfiguration config = provider.getConfig();
+
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
+  }
+
+  @Test
+  public void parseAndValidateUri_whenNull_throwsTsaException() {
+    TsaException ex =
+        assertThrows(TsaException.class, () -> S3TsaConfigProvider.parseAndValidateUri(null));
+
+    assertThat(ex).hasMessageThat().contains("cannot be null");
   }
 
   @Test
@@ -315,48 +364,45 @@ public class S3TsaConfigProviderTest {
 
   @Test
   public void getConfig_whenRelativeUriInConfig_returnsDisabledConfig() {
-    String json =
+    String textProto =
         """
-        {
-          "enabled": true,
-          "tsa_urls": ["tsa.example.com"]
+        enabled {
+          tsa_urls: "tsa.example.com"
         }
         """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
   }
 
   @Test
   public void getConfig_whenNonHttpSchemeInConfig_returnsDisabledConfig() {
-    String json =
+    String textProto =
         """
-        {
-          "enabled": true,
-          "tsa_urls": ["ftp://tsa.example.com"]
+        enabled {
+          tsa_urls: "ftp://tsa.example.com"
         }
         """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
   }
 
   @Test
   public void getConfig_whenHttpSchemeInConfig_returnsCorrectConfig() {
-    String json =
+    String textProto =
         """
-        {
-          "enabled": true,
-          "tsa_urls": ["http://tsa.example.com/tsa"]
+        enabled {
+          tsa_urls: "http://tsa.example.com/tsa"
         }
         """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
     assertThat(config.enabled()).isTrue();
     assertThat(config.tsaUrls()).containsExactly(URI.create("http://tsa.example.com/tsa"));
@@ -364,34 +410,45 @@ public class S3TsaConfigProviderTest {
 
   @Test
   public void getConfig_whenEnabledAndUrlsEmpty_returnsDisabledConfig() {
-    String json =
+    String textProto =
         """
-        {
-          "enabled": true,
-          "tsa_urls": []
+        enabled {}
+        """;
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
+
+    TsaConfiguration config = provider.getConfig();
+
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
+  }
+
+  @Test
+  public void getConfig_whenEnabledAndUrlsEmptyList_returnsDisabledConfig() {
+    String textProto =
+        """
+        enabled {
+          tsa_urls: []
         }
         """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
   }
 
   @Test
   public void getConfig_whenUriHasMissingHost_returnsDisabledConfig() {
-    String json =
+    String textProto =
         """
-        {
-          "enabled": true,
-          "tsa_urls": ["https:///tsa"]
+        enabled {
+          tsa_urls: "https:///tsa"
         }
         """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
   }
 
   @Test
@@ -400,24 +457,23 @@ public class S3TsaConfigProviderTest {
         .thenThrow(
             software.amazon.awssdk.core.exception.SdkClientException.create("Connection refused"));
 
-    TsaConfig config = provider.getConfig();
+    TsaConfiguration config = provider.getConfig();
 
-    assertThat(config).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config).isEqualTo(TsaConfiguration.DISABLED);
   }
 
   @Test
   public void getConfig_withinTtl_cachesResultAndAvoidsExtraS3Calls() {
-    String json =
+    String textProto =
         """
-        {
-          "enabled": true,
-          "tsa_urls": ["https://tsa.example.com/tsa"]
+        enabled {
+          tsa_urls: "https://tsa.example.com/tsa"
         }
         """;
-    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(json));
+    when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(createS3Stream(textProto));
 
-    TsaConfig config1 = provider.getConfig();
-    TsaConfig config2 = provider.getConfig();
+    TsaConfiguration config1 = provider.getConfig();
+    TsaConfiguration config2 = provider.getConfig();
 
     assertThat(config1).isEqualTo(config2);
     verify(s3Client, times(1)).getObject(any(GetObjectRequest.class));
@@ -429,11 +485,11 @@ public class S3TsaConfigProviderTest {
         .thenThrow(
             (S3Exception) S3Exception.builder().statusCode(500).message("Internal Error").build());
 
-    TsaConfig config1 = provider.getConfig();
-    TsaConfig config2 = provider.getConfig();
+    TsaConfiguration config1 = provider.getConfig();
+    TsaConfiguration config2 = provider.getConfig();
 
-    assertThat(config1).isEqualTo(TsaConfig.DISABLED);
-    assertThat(config2).isEqualTo(TsaConfig.DISABLED);
+    assertThat(config1).isEqualTo(TsaConfiguration.DISABLED);
+    assertThat(config2).isEqualTo(TsaConfiguration.DISABLED);
     verify(s3Client, times(1)).getObject(any(GetObjectRequest.class));
   }
 }

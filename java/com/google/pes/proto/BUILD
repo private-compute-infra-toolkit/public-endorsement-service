@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@io_grpc_grpc_java//:java_grpc_library.bzl", "java_grpc_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -45,4 +46,14 @@ java_grpc_library(
 java_proto_library(
     name = "publisher_policy_java_proto",
     deps = ["@pcit_api//google/pes/policy/v1:publisher_policy_proto"],
+)
+
+proto_library(
+    name = "tsa_config_proto",
+    srcs = ["tsa_config.proto"],
+)
+
+java_proto_library(
+    name = "tsa_config_java_proto",
+    deps = [":tsa_config_proto"],
 )

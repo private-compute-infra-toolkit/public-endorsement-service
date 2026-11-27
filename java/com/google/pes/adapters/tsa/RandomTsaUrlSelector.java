@@ -17,7 +17,7 @@
 package com.google.pes.adapters.tsa;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.pes.domain.model.TsaConfig;
+import com.google.pes.domain.model.TsaConfiguration;
 import com.google.pes.domain.ports.TsaConfigProvider;
 import com.google.pes.domain.ports.TsaException;
 import jakarta.inject.Inject;
@@ -59,7 +59,7 @@ public class RandomTsaUrlSelector implements TsaUrlSelector {
 
   @Override
   public Optional<URI> selectUrl() {
-    TsaConfig config = configProvider.getConfig();
+    TsaConfiguration config = configProvider.getConfig();
     if (config == null) {
       throw new TsaException("TSA configuration is null");
     }

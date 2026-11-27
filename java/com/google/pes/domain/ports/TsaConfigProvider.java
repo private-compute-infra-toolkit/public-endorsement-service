@@ -16,11 +16,11 @@
 
 package com.google.pes.domain.ports;
 
-import com.google.pes.domain.model.TsaConfig;
+import com.google.pes.domain.model.TsaConfiguration;
 
 /** Port for providing TSA configuration. */
 public interface TsaConfigProvider {
 
   /** Returns the current TSA configuration. */
-  TsaConfig getConfig();
+  TsaConfiguration getConfig();
 }

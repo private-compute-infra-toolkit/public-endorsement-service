@@ -22,7 +22,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.google.pes.domain.model.TsaConfig;
+import com.google.pes.domain.model.TsaConfiguration;
 import com.google.pes.domain.ports.TsaConfigProvider;
 import com.google.pes.domain.ports.TsaException;
 import java.net.URI;
@@ -45,7 +45,7 @@ public class RandomTsaUrlSelectorTest {
   @Test
   public void selectUrl_singleUrl_alwaysReturnsUrlWithoutInvokingRandomGenerator() {
     TsaConfigProvider mockProvider = mock(TsaConfigProvider.class);
-    when(mockProvider.getConfig()).thenReturn(new TsaConfig(true, List.of(URL_1)));
+    when(mockProvider.getConfig()).thenReturn(new TsaConfiguration(true, List.of(URL_1)));
     RandomGenerator mockRandom = mock(RandomGenerator.class);
 
     RandomTsaUrlSelector selector = new RandomTsaUrlSelector(mockProvider, mockRandom);
@@ -59,7 +59,7 @@ public class RandomTsaUrlSelectorTest {
   public void selectUrl_multipleUrls_usesProvidedRandomGenerator() {
     List<URI> urls = List.of(URL_1, URL_2, URL_3);
     TsaConfigProvider mockProvider = mock(TsaConfigProvider.class);
-    when(mockProvider.getConfig()).thenReturn(new TsaConfig(true, urls));
+    when(mockProvider.getConfig()).thenReturn(new TsaConfiguration(true, urls));
 
     RandomGenerator mockRandom = mock(RandomGenerator.class);
     when(mockRandom.nextInt(3)).thenReturn(0, 1, 2);
@@ -75,7 +75,7 @@ public class RandomTsaUrlSelectorTest {
   public void selectUrl_multipleUrls_returnsConfiguredUrls() {
     List<URI> urls = List.of(URL_1, URL_2, URL_3);
     TsaConfigProvider mockProvider = mock(TsaConfigProvider.class);
-    when(mockProvider.getConfig()).thenReturn(new TsaConfig(true, urls));
+    when(mockProvider.getConfig()).thenReturn(new TsaConfiguration(true, urls));
 
     // Use a fixed seed to guarantee deterministic, non-flaky test execution across 100 iterations.
     RandomTsaUrlSelector selector = new RandomTsaUrlSelector(mockProvider, new Random(42L));
@@ -95,7 +95,7 @@ public class RandomTsaUrlSelectorTest {
   public void selectUrl_defaultConstructorWithMultipleUrls_returnsConfiguredUrl() {
     List<URI> urls = List.of(URL_1, URL_2, URL_3);
     TsaConfigProvider mockProvider = mock(TsaConfigProvider.class);
-    when(mockProvider.getConfig()).thenReturn(new TsaConfig(true, urls));
+    when(mockProvider.getConfig()).thenReturn(new TsaConfiguration(true, urls));
 
     RandomTsaUrlSelector selector = new RandomTsaUrlSelector(mockProvider);
 
@@ -109,7 +109,7 @@ public class RandomTsaUrlSelectorTest {
   @Test
   public void selectUrl_emptyUrls_throwsTsaException() {
     TsaConfigProvider mockProvider = mock(TsaConfigProvider.class);
-    when(mockProvider.getConfig()).thenReturn(new TsaConfig(true, List.of()));
+    when(mockProvider.getConfig()).thenReturn(new TsaConfiguration(true, List.of()));
 
     RandomTsaUrlSelector selector = new RandomTsaUrlSelector(mockProvider);
 
@@ -120,7 +120,7 @@ public class RandomTsaUrlSelectorTest {
   @Test
   public void selectUrl_disabledConfigWithUrls_returnsEmptyOptional() {
     TsaConfigProvider mockProvider = mock(TsaConfigProvider.class);
-    when(mockProvider.getConfig()).thenReturn(new TsaConfig(false, List.of(URL_1)));
+    when(mockProvider.getConfig()).thenReturn(new TsaConfiguration(false, List.of(URL_1)));
 
     RandomTsaUrlSelector selector = new RandomTsaUrlSelector(mockProvider);
 
@@ -130,7 +130,7 @@ public class RandomTsaUrlSelectorTest {
   @Test
   public void selectUrl_disabledConfigWithEmptyUrls_returnsEmptyOptional() {
     TsaConfigProvider mockProvider = mock(TsaConfigProvider.class);
-    when(mockProvider.getConfig()).thenReturn(TsaConfig.DISABLED);
+    when(mockProvider.getConfig()).thenReturn(TsaConfiguration.DISABLED);
 
     RandomTsaUrlSelector selector = new RandomTsaUrlSelector(mockProvider);
 
@@ -152,9 +152,9 @@ public class RandomTsaUrlSelectorTest {
   public void selectUrl_dynamicConfigUpdates_reflectsLatestConfigurationOnEachCall() {
     TsaConfigProvider mockProvider = mock(TsaConfigProvider.class);
     when(mockProvider.getConfig())
-        .thenReturn(new TsaConfig(true, List.of(URL_1)))
-        .thenReturn(new TsaConfig(true, List.of(URL_2)))
-        .thenReturn(TsaConfig.DISABLED);
+        .thenReturn(new TsaConfiguration(true, List.of(URL_1)))
+        .thenReturn(new TsaConfiguration(true, List.of(URL_2)))
+        .thenReturn(TsaConfiguration.DISABLED);
 
     RandomTsaUrlSelector selector = new RandomTsaUrlSelector(mockProvider);
 

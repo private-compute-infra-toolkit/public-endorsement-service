@@ -16,20 +16,20 @@
 
 package com.google.pes.adapters.tsa;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.flogger.FluentLogger;
-import com.google.pes.domain.model.TsaConfig;
+import com.google.pes.domain.model.TsaConfiguration;
 import com.google.pes.domain.ports.TsaConfigProvider;
 import com.google.pes.domain.ports.TsaException;
+import com.google.pes.proto.TsaConfig;
+import com.google.protobuf.TextFormat;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -48,54 +48,61 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public class S3TsaConfigProvider implements TsaConfigProvider {
   private static final FluentLogger logger = FluentLogger.forEnclosingClass();
   private static final Duration CACHE_TTL = Duration.ofMinutes(5);
-  public static final String TSA_CONFIG_FILE_NAME = "tsa-config.json";
+  private static final TextFormat.Parser TEXT_FORMAT_PARSER =
+      TextFormat.Parser.newBuilder()
+          .setAllowUnknownFields(true)
+          .setSingularOverwritePolicy(
+              TextFormat.Parser.SingularOverwritePolicy.FORBID_SINGULAR_OVERWRITES)
+          .build();
+  public static final String TSA_CONFIG_FILE_NAME = "tsa_config.textproto";
 
   private final S3Client s3Client;
   private final String bucketName;
-  private final ObjectMapper objectMapper;
-  private final Supplier<TsaConfig> configSupplier;
-
-  @JsonIgnoreProperties(ignoreUnknown = true)
-  private record TsaConfigDto(
-      @JsonProperty("enabled") boolean enabled, @JsonProperty("tsa_urls") List<String> tsaUrls) {}
+  private final Supplier<TsaConfiguration> configSupplier;
 
   @Inject
-  public S3TsaConfigProvider(
-      S3Client s3Client, @TsaConfigBucketName String bucketName, ObjectMapper objectMapper) {
+  public S3TsaConfigProvider(S3Client s3Client, @TsaConfigBucketName String bucketName) {
     this.s3Client = s3Client;
     this.bucketName = bucketName;
-    this.objectMapper = objectMapper;
     this.configSupplier =
         Suppliers.memoizeWithExpiration(
             this::fetchConfig, CACHE_TTL.toNanos(), TimeUnit.NANOSECONDS);
   }
 
   @Override
-  public TsaConfig getConfig() {
+  public TsaConfiguration getConfig() {
     return configSupplier.get();
   }
 
-  private TsaConfig fetchConfig() {
+  private TsaConfiguration fetchConfig() {
     GetObjectRequest getObjectRequest =
         GetObjectRequest.builder().bucket(bucketName).key(TSA_CONFIG_FILE_NAME).build();
     try (ResponseInputStream<GetObjectResponse> s3Stream = s3Client.getObject(getObjectRequest)) {
-      TsaConfigDto dto = objectMapper.readValue(s3Stream, TsaConfigDto.class);
-      if (dto == null) {
-        return TsaConfig.DISABLED;
-      }
-      List<URI> uris =
-          dto.tsaUrls() != null
-              ? dto.tsaUrls().stream().map(S3TsaConfigProvider::parseAndValidateUri).toList()
-              : List.of();
-      if (dto.enabled() && uris.isEmpty()) {
-        throw new TsaException(
-            "TSA is enabled but no TSA URLs were configured in "
-                + bucketName
-                + "/"
-                + TSA_CONFIG_FILE_NAME);
-      }
+      String textProto = new String(s3Stream.readAllBytes(), StandardCharsets.UTF_8);
+      TsaConfig.Builder protoBuilder = TsaConfig.newBuilder();
+      TEXT_FORMAT_PARSER.merge(textProto, protoBuilder);
+      TsaConfig proto = protoBuilder.build();
 
-      return new TsaConfig(dto.enabled(), uris);
+      return switch (proto.getModeCase()) {
+        case DISABLED -> TsaConfiguration.DISABLED;
+        case ENABLED -> {
+          List<URI> uris =
+              proto.getEnabled().getTsaUrlsList().stream()
+                  .map(S3TsaConfigProvider::parseAndValidateUri)
+                  .toList();
+          if (uris.isEmpty()) {
+            throw new TsaException(
+                "TSA is enabled but no TSA URLs were configured in "
+                    + bucketName
+                    + "/"
+                    + TSA_CONFIG_FILE_NAME);
+          }
+          yield new TsaConfiguration(true, uris);
+        }
+        case MODE_NOT_SET ->
+            throw new TsaException(
+                "TSA configuration mode is not set in " + bucketName + "/" + TSA_CONFIG_FILE_NAME);
+      };
     } catch (SdkException e) {
       if (e instanceof S3Exception s3e && isNotFound(s3e)) {
         logger.atWarning().log(
@@ -108,17 +115,25 @@ public class S3TsaConfigProvider implements TsaConfigProvider {
             "Failed to fetch TSA configuration from S3: %s/%s. Defaulting to disabled.",
             bucketName, TSA_CONFIG_FILE_NAME);
       }
-      return TsaConfig.DISABLED;
+      return TsaConfiguration.DISABLED;
+    } catch (TextFormat.ParseException e) {
+      // Do not attach TextFormat.ParseException as cause because its message may include raw
+      // config tokens such as TSA URLs, which must not be logged (b/564818687).
+      logger.atWarning().log(
+          "Failed to parse TSA configuration from S3: %s/%s (line %d, column %d). Defaulting to"
+              + " disabled.",
+          bucketName, TSA_CONFIG_FILE_NAME, e.getLine(), e.getColumn());
+      return TsaConfiguration.DISABLED;
     } catch (IOException e) {
       logger.atWarning().withCause(e).log(
-          "Failed to parse TSA configuration from S3: %s/%s. Defaulting to disabled.",
+          "Failed to read TSA configuration from S3: %s/%s. Defaulting to disabled.",
           bucketName, TSA_CONFIG_FILE_NAME);
-      return TsaConfig.DISABLED;
+      return TsaConfiguration.DISABLED;
     } catch (IllegalArgumentException | TsaException e) {
       logger.atWarning().withCause(e).log(
           "Invalid TSA configuration in %s/%s. Defaulting to disabled.",
           bucketName, TSA_CONFIG_FILE_NAME);
-      return TsaConfig.DISABLED;
+      return TsaConfiguration.DISABLED;
     }
   }
 

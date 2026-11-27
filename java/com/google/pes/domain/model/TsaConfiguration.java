@@ -16,26 +16,21 @@
 
 package com.google.pes.domain.model;
 
-import static com.google.common.truth.Truth.assertThat;
-
 import java.net.URI;
 import java.util.List;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
 
-@RunWith(JUnit4.class)
-public class TsaConfigTest {
+/** Configuration for TSA timestamping containing an enabled flag and a list of TSA URLs. */
+public record TsaConfiguration(boolean enabled, List<URI> tsaUrls) {
 
-  @Test
-  public void toString_redactsTsaUrls() {
-    URI secretUri = URI.create("https://secret-tsa.example.com/timestamp?token=123");
-    TsaConfig config = new TsaConfig(true, List.of(secretUri));
+  public static final TsaConfiguration DISABLED = new TsaConfiguration(false, List.of());
 
-    String str = config.toString();
+  public TsaConfiguration {
+    tsaUrls = tsaUrls != null ? List.copyOf(tsaUrls) : List.of();
+  }
 
-    assertThat(str).isEqualTo("TsaConfig[enabled=true, tsaUrls.size=1]");
-    assertThat(str).doesNotContain(secretUri.toString());
-    assertThat(str).doesNotContain(secretUri.getHost());
+  @Override
+  public String toString() {
+    // Redact TSA URLs from string representation so they are not exposed in logs (b/564818687).
+    return "TsaConfiguration[enabled=" + enabled + ", tsaUrls.size=" + tsaUrls.size() + "]";
   }
 }
